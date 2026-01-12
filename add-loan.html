@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Loan</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { background-color: #525659; padding: 20px; }
+        .paper-wrapper { display: block !important; margin: 0 auto; max-width: 210mm; }
+        .btn-back { position: absolute; top: 20px; left: 20px; color: white; text-decoration: none; font-weight: bold; font-family: sans-serif; }
+        .btn-back:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <a href="#" onclick="window.close()" class="btn-back">← Close</a>
+
+    <div class="paper-wrapper">
+        <form id="paperLoanForm">
+            <div class="paper-container">
+                <div class="paper-header">
+                    <h1>SANJARANG PRIVATE LIMITED</h1>
+                    <h2>LOAN APPLICATION FORM</h2>
+                    <p>FORM - A</p>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Applicant Details</div>
+                    <div class="paper-row">
+                        <div class="paper-col-2">
+                            <div class="paper-row">
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Name of Applicant</span><input type="text" id="p-borrower" class="paper-input" required></div></div>
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Date of Birth</span><input type="date" id="p-dob" class="paper-input"></div></div>
+                            </div>
+                            <div class="paper-row">
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Father / Husband Name</span><input type="text" id="p-father" class="paper-input"></div></div>
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Guarantor Name</span><input type="text" id="p-guarantor" class="paper-input"></div></div>
+                            </div>
+                        </div>
+                        <div class="paper-col" style="flex: 0 0 130px;">
+                            <div class="photo-box" style="position: relative; overflow: hidden;">
+                                <div id="photo-text">Photo Area</div>
+                                <img id="preview-photo" style="width: 100%; height: 100%; object-fit: cover; display: none; position: absolute; top: 0; left: 0;">
+                                <label for="loan-photo" style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.5); color: white; font-size: 10px; text-align: center; cursor: pointer; padding: 4px 0;">Upload Photo</label>
+                                <input type="file" id="loan-photo" accept="image/*" style="display: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Address & Contact</div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Village</span><input type="text" id="p-village" class="paper-input"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">P.O.</span><input type="text" id="p-po" class="paper-input"></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">District</span><input type="text" id="p-district" class="paper-input"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Pin No</span><input type="text" id="p-pin" class="paper-input"></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Mobile</span><input type="text" id="p-mobile" class="paper-input"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">WhatsApp</span><input type="text" id="p-whatsapp" class="paper-input"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Email</span><input type="email" id="p-email" class="paper-input"></div></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">KYC & Loan Details</div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Aadhaar Card No</span><input type="text" id="p-aadhaar" class="paper-input"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">PAN Card No</span><input type="text" id="p-pan" class="paper-input"></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Loan Amount (₹)</span><input type="number" id="p-amount" class="paper-input" step="0.01" required></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Interest Rate (%)</span><input type="number" id="p-interest" class="paper-input" step="0.01"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Tenure (Months)</span><input type="number" id="p-tenure" class="paper-input"></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Issue Date</span><input type="date" id="p-dueDate" class="paper-input" required></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Purpose</span><input type="text" id="p-purpose" class="paper-input"></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Monthly EMI</span><input type="text" id="p-emi" class="paper-input" readonly style="font-weight: bold; color: #27ae60;"></div></div>
+                    </div>
+                </div>
+
+                <div class="signature-section" style="display: flex; justify-content: space-between; margin-top: 60px; padding: 0 20px;">
+                    <div class="signature-box" style="text-align: center; width: 200px;">
+                        <div style="height:50px; position: relative; display: flex; align-items: center; justify-content: center; border-bottom: 1px dashed #ccc;">
+                            <span id="sign-app-text" style="color: #eee; font-size: 10px;">Sign Here</span>
+                            <img id="preview-sign-applicant" style="max-height: 100%; max-width: 100%; display: none;">
+                            <label for="loan-sign-applicant" style="position: absolute; top: -15px; right: 0; background: #eee; font-size: 9px; padding: 2px 5px; cursor: pointer; border-radius: 3px; color: #333;">Upload</label>
+                            <input type="file" id="loan-sign-applicant" accept="image/*" style="display: none;">
+                        </div>
+                        <div class="signature-line" style="border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; font-weight: bold; font-size: 12px;">Applicant Signature</div>
+                    </div>
+                    <div class="signature-box" style="text-align: center; width: 200px;">
+                        <div style="height:50px; position: relative; display: flex; align-items: center; justify-content: center; border-bottom: 1px dashed #ccc;">
+                            <span id="sign-guar-text" style="color: #eee; font-size: 10px;">Sign Here</span>
+                            <img id="preview-sign-guarantor" style="max-height: 100%; max-width: 100%; display: none;">
+                            <label for="loan-sign-guarantor" style="position: absolute; top: -15px; right: 0; background: #eee; font-size: 9px; padding: 2px 5px; cursor: pointer; border-radius: 3px; color: #333;">Upload</label>
+                            <input type="file" id="loan-sign-guarantor" accept="image/*" style="display: none;">
+                        </div>
+                        <div class="signature-line" style="border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; font-weight: bold; font-size: 12px;">Guarantor Signature</div>
+                    </div>
+                </div>
+
+                <div class="btn-container">
+                    <button type="submit" class="btn">Save Application</button>
+                    <button type="button" class="btn btn-print" id="cancelLoanBtn" style="background-color: #6c757d;">Cancel</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Payments</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background-color: white; padding: 20px; max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .payment-summary { display: flex; justify-content: space-between; background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
+        .summary-item h3 { margin: 0 0 5px 0; font-size: 14px; color: #7f8c8d; text-transform: uppercase; }
+        .summary-item p { margin: 0; font-size: 18px; font-weight: bold; color: #2c3e50; }
+        .paid-badge { background-color: #27ae60; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .unpaid-badge { background-color: #e74c3c; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .pay-btn { background-color: #3498db; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .pay-btn:hover { background-color: #2980b9; }
+        .pay-btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn-back { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #555; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <a href="#" onclick="window.close()" class="btn-back">← Close Window</a>
+    <h1>Loan Payment Schedule</h1>
+    
+    <div id="payment-info">
+        <!-- Summary injected here -->
+        <p style="text-align: center;">Loading...</p>
+    </div>
+
+    <table id="payment-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Due Date</th>
+                <th>EMI Amount</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <script src="app.js"></script>
+</body>
+</html>

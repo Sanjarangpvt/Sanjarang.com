@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overdue Loans</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background-color: white; padding: 20px; max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; color: #c0392b; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .print-btn { display: block; margin: 20px auto; padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; width: fit-content; text-decoration: none; text-align: center;}
+        .print-btn:hover { background: #2980b9; }
+        @media print { .print-btn { display: none; } }
+    </style>
+</head>
+<body>
+    <a href="manage-loans.html" style="position: absolute; top: 20px; left: 20px; text-decoration: none; font-weight: bold; color: #2c3e50; font-family: sans-serif;">← Back</a>
+    <h1>Overdue Loans Report</h1>
+    <a href="#" onclick="window.print()" class="print-btn">Print List</a>
+    <table id="overdue-loans-table">
+        <thead>
+            <tr>
+                <th>Borrower Name</th>
+                <th>Mobile Number</th>
+                <th>Loan Amount</th>
+                <th>Due Date</th>
+                <th>Days Overdue</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <script src="app.js"></script>
+</body>
+</html>
