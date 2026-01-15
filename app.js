@@ -1,4 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- WELCOME TOAST LOGIC ---
+    if (localStorage.getItem('showWelcomeToast') === 'true') {
+        const user = localStorage.getItem('currentUser') || 'User';
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.innerHTML = `<i class="bi bi-check-circle-fill" style="font-size: 1.2rem;"></i> <span>Welcome back, ${user}!</span>`;
+        document.body.appendChild(toast);
+        
+        // Trigger animation
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        // Remove after 3.5 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 400);
+        }, 3500);
+        
+        localStorage.removeItem('showWelcomeToast');
+    }
+
     // --- INITIALIZE FLATPICKR (DATE PICKER) ---
     if (typeof flatpickr !== 'undefined') {
         flatpickr('input[type="date"]', {
@@ -96,6 +118,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('loans', JSON.stringify(loans)); // Sync local storage
                 document.dispatchEvent(new CustomEvent('loans-updated'));
             });
+
+            // Sync Company Profile
+            onSnapshot(doc(db, "settings", "companyProfile"), (docSnap) => {
+                if (docSnap.exists()) {
+                    localStorage.setItem('companyProfile', JSON.stringify(docSnap.data()));
+                    updateSidebarProfile();
+                }
+            });
+
+            // Sync Admin Users
+            onSnapshot(collection(db, "admin_users"), (snapshot) => {
+                const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+                localStorage.setItem('adminUsers', JSON.stringify(admins));
+            });
         } catch (e) {
             console.log("Firestore sync not active (offline or config missing)");
         }
@@ -160,14 +196,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerUserName = document.querySelector('.user-name');
     const headerUserRole = document.querySelector('.user-role');
     const currentUser = localStorage.getItem('currentUser');
-    const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
-    const userObj = admins.find(a => a.username.toLowerCase() === (currentUser || '').toLowerCase());
+    const userRole = localStorage.getItem('userRole') || 'Staff';
 
     if (headerUserName && currentUser) {
         headerUserName.textContent = currentUser;
     }
-    if (headerUserRole && userObj && userObj.role) {
-        headerUserRole.textContent = userObj.role;
+    if (headerUserRole) {
+        headerUserRole.textContent = userRole;
+    }
+
+    // Restrict Sidebar Access for Non-Admins
+    if (userRole !== 'Administrator') {
+        const settingsLink = document.querySelector('nav a[href="settings.html"]');
+        if (settingsLink) settingsLink.style.display = 'none';
+        const walletLink = document.querySelector('nav a[href="wallet.html"]');
+        if (walletLink) walletLink.style.display = 'none';
+        const profileLink = document.querySelector('nav a[href="profile.html"]');
+        if (profileLink) profileLink.style.display = 'none';
     }
 
     // --- MANAGE LOANS PAGE LOGIC (index.html) ---
@@ -183,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const updateManageLoansStats = () => {
         if (mlTotalBorrowersEl) {
-            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim().toLowerCase())).size;
+            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim())).size;
             const today = new Date().toISOString().split('T')[0];
             const overdueCount = loans.filter(l => {
                 const nextDue = getNextDueDate(l);
@@ -209,7 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const row = document.createElement('tr');
 
                 row.innerHTML = `
-                    <td>${loan.borrower}</td>
+                    <td>
+                        <div style="font-weight: 600;">${loan.borrower}</div>
+                        ${loan.loanRef ? `<div style="font-size: 0.75rem; color: #7f8c8d;">${loan.loanRef}</div>` : ''}
+                    </td>
                     <td>₹${parseFloat(loan.amount).toFixed(2)}</td>
                     <td>${formatDate(loan.dueDate)}</td>
                     <td>
@@ -321,6 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setVal('p-tenure', loan.tenure);
             setVal('p-dueDate', loan.dueDate);
             setVal('p-purpose', loan.purpose);
+            if(loan.loanRef) { const refEl = document.getElementById('display-loan-ref'); if(refEl) refEl.textContent = `Ref: ${loan.loanRef}`; }
             calculateFormEMI(); // Calculate EMI for existing data
 
             // Populate Images
@@ -340,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (submitBtn) submitBtn.textContent = 'Update Application';
         }
 
-        paperLoanForm.addEventListener('submit', (e) => {
+        paperLoanForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             // Get image data safely
@@ -374,27 +423,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 guarantorSignature: getImgSrc('preview-sign-guarantor')
             };
 
+            let message = '';
             if (mode === 'edit' && editId !== null) {
                 // Preserve existing data like payments
                 const updatedLoan = { ...loans[editId], ...newLoan };
                 loans[editId] = updatedLoan;
-                saveLoans(updatedLoan);
-                alert('Loan Application Updated Successfully!');
+                await saveLoans(updatedLoan);
+                message = 'Loan Application Updated Successfully!';
             } else {
+                // Generate Loan Reference Number
+                const date = new Date();
+                const randomNum = Math.floor(1000 + Math.random() * 9000);
+                const refNo = `LN${date.getFullYear().toString().slice(-2)}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}-${randomNum}`;
+                newLoan.loanRef = refNo;
+
                 loans.push(newLoan);
-                saveLoans(newLoan);
-                alert('Loan Application Saved Successfully!');
+                await saveLoans(newLoan);
+                message = `Loan Application Saved Successfully!<br>Generated Reference No: <strong>${refNo}</strong>`;
             }
-            paperLoanForm.reset();
             
-            // If in new window (add-loan.html), close it and refresh opener
-            if (window.location.pathname.includes('add-loan.html')) {
-                if (window.opener && !window.opener.closed) {
-                    window.opener.location.reload();
+            const successPopup = document.getElementById('success-popup');
+            const handleClose = () => {
+                paperLoanForm.reset();
+                if (window.location.pathname.includes('add-loan.html')) {
+                    if (window.opener && !window.opener.closed) {
+                        window.opener.location.reload();
+                    }
+                    window.close();
+                } else {
+                    window.location.reload();
                 }
-                window.close();
+            };
+
+            if (successPopup) {
+                const msgEl = document.getElementById('success-message');
+                if (msgEl) msgEl.innerHTML = message;
+                successPopup.style.display = 'flex';
+                
+                const closeBtn = document.getElementById('close-success-btn');
+                if (closeBtn) closeBtn.onclick = handleClose;
             } else {
-                window.location.reload();
+                alert(message.replace(/<br>/g, '\n').replace(/<strong>|<\/strong>/g, ''));
+                handleClose();
             }
         });
 
@@ -422,23 +492,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         const div = document.createElement('div');
                         div.className = 'search-result-item';
                         div.innerHTML = `
-                            <div style="font-weight:bold;">${match.borrower}</div>
-                            <div style="font-size:0.8rem; color:#777;">Amount: ₹${parseFloat(match.amount).toFixed(2)}</div>
+                            <div style="flex-grow: 1;">
+                                <div style="font-weight:bold;">${match.borrower}</div>
+                                <div style="font-size:0.8rem; color:#777;">Amount: ₹${parseFloat(match.amount).toFixed(2)}</div>
+                            </div>
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <a href="loan-profile.html?id=${match.originalIndex}" target="_blank" style="background-color: #3498db; color: white; padding: 4px 8px; text-decoration: none; border-radius: 4px; font-size: 11px; white-space: nowrap;">View Profile</a>
+                                <button class="search-loan-profile-btn" data-index="${match.originalIndex}" style="background-color: #2c3e50; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; white-space: nowrap;">Loan Profile</button>
+                            </div>
                         `;
-                        div.addEventListener('click', () => {
-                            // Try to open via Dashboard Modal (showBorrowerDetails)
-                            // Note: showBorrowerDetails is defined inside the dashboard logic block below.
-                            // We need to check if we can access it or fallback.
-                            
-                            // Since showBorrowerDetails is scoped, we'll use a custom event or fallback to URL
-                            const dashboardModal = document.getElementById('borrower-modal');
-                            if (dashboardModal && typeof showBorrowerDetailsGlobal === 'function') {
-                                showBorrowerDetailsGlobal(match.borrower);
-                            } else {
-                                window.open(`loan-profile.html?id=${match.originalIndex}`, '_blank');
+                        
+                        div.style.display = 'flex';
+                        div.style.justifyContent = 'space-between';
+                        div.style.alignItems = 'center';
+                        div.style.cursor = 'default';
+
+                        div.addEventListener('click', (e) => {
+                            if (e.target.classList.contains('search-loan-profile-btn')) {
+                                e.stopPropagation();
+                                const idx = e.target.getAttribute('data-index');
+                                if (typeof window.openLoanProfileModal === 'function') {
+                                    window.openLoanProfileModal(idx);
+                                } else {
+                                    window.location.href = `active-loans.html?id=${idx}`;
+                                }
+                                searchResults.style.display = 'none';
+                                searchInput.value = '';
                             }
-                            searchResults.style.display = 'none';
-                            searchInput.value = '';
                         });
                         searchResults.appendChild(div);
                     });
@@ -474,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const renderDashboard = () => {
             // Calculate Stats
-            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim().toLowerCase())).size;
+            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim())).size;
             const today = new Date().toISOString().split('T')[0];
             const closedCount = loans.filter(l => l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)).length;
             
@@ -684,9 +764,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 loanChart = new Chart(chartCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Active Loans', 'Closed Loans'],
+                        labels: ['Active Loans', 'Closed Loans'],   //to sho
                         datasets: [{
-                            data: [loans.length, 0],
+                            data: [loans.length - closedCount, closedCount],
                             backgroundColor: ['#3498db', '#e74c3c'],
                             borderWidth: 0
                         }]
@@ -839,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${nextDueStr}</td>
                         <td style="color: ${statusColor}; font-weight: bold;">${statusText}</td>
                         <td>
-                            <button class="edit-loan-btn" data-index="${loan.originalIndex}" style="background-color: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Edit</button>
+                            <a href="loan-profile.html?id=${loan.originalIndex}" target="_blank" style="background-color: #3498db; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-size: 12px;">View Profile</a>
                         </td>
                     `;
                     modalTableBody.appendChild(row);
@@ -936,9 +1016,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 email: document.getElementById('cp-email').value,
                 logo: logoDataUrl
             };
-            localStorage.setItem('companyProfile', JSON.stringify(profile));
-            alert('Company details saved successfully!');
-            updateSidebarProfile();
+            
+            // Save to Firestore if available
+            if (db && firestoreOps.doc && firestoreOps.setDoc) {
+                firestoreOps.setDoc(firestoreOps.doc(db, "settings", "companyProfile"), profile)
+                    .then(() => alert('Company details saved to cloud successfully!'))
+                    .catch(e => alert('Error saving to cloud: ' + e.message));
+            } else {
+                localStorage.setItem('companyProfile', JSON.stringify(profile));
+                alert('Company details saved locally!');
+                updateSidebarProfile();
+            }
         });
     }
 
@@ -971,13 +1059,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const tbody = fullActiveLoansTable.querySelector('tbody');
             tbody.innerHTML = '';
             
+            const searchInput = document.getElementById('active-loan-search');
+            const query = searchInput ? searchInput.value.toLowerCase() : '';
+
             const today = new Date().toISOString().split('T')[0];
             // Filter out closed loans
-            const activeLoansList = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
+            let activeLoansList = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
                                          .filter(l => !(l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)));
 
+            if (query) {
+                activeLoansList = activeLoansList.filter(l => 
+                    l.borrower.toLowerCase().includes(query) || 
+                    (l.loanRef && l.loanRef.toLowerCase().includes(query))
+                );
+            }
+
             if (activeLoansList.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: #777;">No active loans found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: #777;">No active loans found</td></tr>';
             } else {
                 activeLoansList.forEach((loan) => {
                     const index = loan.originalIndex;
@@ -990,7 +1088,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const statusColor = isOverdue ? '#e74c3c' : '#27ae60';
 
                     row.innerHTML = `
-                        <td>${loan.borrower}</td>
+                        <td><div style="font-weight: 600;">${loan.borrower}</div></td>
+                        <td style="font-size: 0.9rem; color: #555;">${loan.loanRef || '-'}</td>
                         <td>${loan.mobile || 'N/A'}</td>
                         <td>₹${parseFloat(loan.amount).toFixed(2)}</td>
                         <td>${nextDueDisplay}</td>
@@ -998,6 +1097,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>
                             <a href="loan-profile.html?id=${index}" target="_blank" style="background-color: #3498db; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-size: 12px;">View Profile</a>
                             <button class="btn btn-sm btn-dark open-profile-modal" data-index="${index}" style="margin-left: 5px;">Loan Profile</button>
+                            <button class="btn btn-sm btn-success whatsapp-reminder-btn" data-mobile="${loan.mobile}" data-name="${loan.borrower}" data-amount="${loan.amount}" data-next-due="${nextDueDisplay}" style="margin-left: 5px;" title="Send WhatsApp Reminder"><i class="bi bi-whatsapp"></i></button>
                         </td>
                     `;
                     tbody.appendChild(row);
@@ -1005,6 +1105,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         renderActiveLoans();
+        
+        const searchInput = document.getElementById('active-loan-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', renderActiveLoans);
+        }
+
         document.addEventListener('loans-updated', renderActiveLoans);
 
         // Handle "Loan Profile" Modal
@@ -1012,6 +1118,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.classList.contains('open-profile-modal')) {
                 const index = e.target.getAttribute('data-index');
                 openLoanProfileModal(index);
+            } else if (e.target.closest('.whatsapp-reminder-btn')) {
+                const btn = e.target.closest('.whatsapp-reminder-btn');
+                const mobile = btn.getAttribute('data-mobile');
+                const name = btn.getAttribute('data-name');
+                const amount = btn.getAttribute('data-amount');
+                const nextDue = btn.getAttribute('data-next-due');
+
+                if (mobile && mobile !== 'N/A') {
+                    const message = `Hello ${name}, gentle reminder regarding your active loan of ₹${parseFloat(amount).toFixed(2)}. Next due date: ${nextDue}.`;
+                    window.open(`https://wa.me/${mobile}?text=${encodeURIComponent(message)}`, '_blank');
+                } else {
+                    alert('No mobile number available for this borrower.');
+                }
             }
         });
 
@@ -1114,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     closureBtn.onclick = () => {
                         // Populate Certificate
                         document.getElementById('cert-borrower').textContent = loan.borrower;
-                        document.getElementById('cert-ref').textContent = `LN-${parseInt(index) + 1001}`;
+                        document.getElementById('cert-ref').textContent = loan.loanRef || `LN-${parseInt(index) + 1001}`;
                         document.getElementById('cert-amount').textContent = parseFloat(loan.amount).toLocaleString();
                         document.getElementById('cert-date').textContent = formatDate(new Date());
 
@@ -1172,14 +1291,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (confirm('Confirm full payment?')) {
                         loans[lIdx].paidInstallments.push(inst);
                         if (!loans[lIdx].paidDates) loans[lIdx].paidDates = {};
-                        loans[lIdx].paidDates[inst] = new Date().toISOString();
+                        const payDate = new Date();
+                        loans[lIdx].paidDates[inst] = payDate.toISOString();
+                        
                         // Clear partial payments for this installment if any
                         if (loans[lIdx].partialPayments && loans[lIdx].partialPayments[inst]) {
                             delete loans[lIdx].partialPayments[inst];
                         }
                         saveLoans(loans[lIdx]);
+
+                        // WhatsApp Receipt
+                        if (loans[lIdx].mobile && loans[lIdx].mobile !== 'N/A') {
+                            const msg = `Payment Receipt\n\nDear ${loans[lIdx].borrower},\nReceived with thanks: ₹${emi.toFixed(2)}\nTowards: Installment #${inst}\nDate: ${payDate.toLocaleDateString()}\n\nThank you!`;
+                            if(confirm("Open WhatsApp to send receipt?")) {
+                                window.open(`https://wa.me/${loans[lIdx].mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+                            }
+                        }
+
                         openLoanProfileModal(lIdx); // Refresh modal
-                        // Also refresh main table if needed, but simple reload is easier
                     }
                 } else if (e.target.classList.contains('mark-modal-partially-paid')) {
                     const lIdx = e.target.getAttribute('data-loan-index');
@@ -1419,6 +1548,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
         }
+        window.openLoanProfileModal = openLoanProfileModal;
 
         // Auto-open modal if ID is in URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -1455,6 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('vp-tenure').value = loan.tenure || '';
             document.getElementById('vp-dueDate').value = loan.dueDate || '';
             document.getElementById('vp-purpose').value = loan.purpose || '';
+            if(loan.loanRef) document.getElementById('vp-loan-ref').textContent = `Ref: ${loan.loanRef}`;
             
             // Populate Images
             if (loan.photo) {
@@ -1499,8 +1630,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- BORROWERS LIST PAGE LOGIC (borrowers-list.html) ---
     const borrowersListTable = document.getElementById('borrowers-list-table');
     if (borrowersListTable) {
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        const tbody = borrowersListTable.querySelector('tbody');
+
         const renderBorrowers = () => {
-            const tbody = borrowersListTable.querySelector('tbody');
             tbody.innerHTML = '';
 
             const borrowerStats = {};
@@ -1510,8 +1644,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isClosed = (loan.paidInstallments && loan.paidInstallments.length >= (parseInt(loan.tenure) || 1));
 
                 if (!borrowerStats[name]) {
-                    borrowerStats[name] = { count: 0, total: 0, mobile: loan.mobile || 'N/A', hasActive: false, originalIndex: index };
+                    borrowerStats[name] = { 
+                        count: 0, 
+                        total: 0, 
+                        mobile: loan.mobile || 'N/A', 
+                        hasActive: false, 
+                        originalIndex: index,
+                        lastDate: loan.dueDate,
+                        refNos: []
+                    };
+                } else if (loan.dueDate > (borrowerStats[name].lastDate || '')) {
+                    borrowerStats[name].lastDate = loan.dueDate;
                 }
+
                 borrowerStats[name].count++;
                 borrowerStats[name].total += parseFloat(loan.amount || 0);
                 
@@ -1523,31 +1668,174 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (borrowerStats[name].mobile === 'N/A' && loan.mobile) {
                     borrowerStats[name].mobile = loan.mobile;
                 }
+
+                if (loan.loanRef) borrowerStats[name].refNos.push(loan.loanRef);
             });
 
-            if (Object.keys(borrowerStats).length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #777;">No borrowers found</td></tr>';
+            // Convert to array and sort by Date (Most Recent First)
+            const sortedBorrowers = Object.keys(borrowerStats).map(name => ({
+                name,
+                ...borrowerStats[name]
+            })).sort((a, b) => new Date(b.lastDate || 0) - new Date(a.lastDate || 0));
+
+            let displayList = sortedBorrowers;
+            const searchInput = document.getElementById('borrower-search');
+            if (searchInput && searchInput.value) {
+                const q = searchInput.value.toLowerCase();
+                displayList = displayList.filter(b => 
+                    b.name.toLowerCase().includes(q) || 
+                    b.refNos.some(ref => ref.toLowerCase().includes(q))
+                );
+            }
+
+            // Pagination Logic
+            const totalPages = Math.ceil(displayList.length / rowsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const paginatedList = displayList.slice(startIndex, startIndex + rowsPerPage);
+
+            // Update Controls
+            const pageIndicator = document.getElementById('page-indicator');
+            const prevBtn = document.getElementById('prev-page-btn');
+            const nextBtn = document.getElementById('next-page-btn');
+
+            if (pageIndicator) pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+            if (prevBtn) { prevBtn.disabled = currentPage === 1; prevBtn.style.opacity = currentPage === 1 ? '0.5' : '1'; prevBtn.style.cursor = currentPage === 1 ? 'not-allowed' : 'pointer'; }
+            if (nextBtn) { nextBtn.disabled = currentPage === totalPages; nextBtn.style.opacity = currentPage === totalPages ? '0.5' : '1'; nextBtn.style.cursor = currentPage === totalPages ? 'not-allowed' : 'pointer'; }
+
+            if (displayList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: #777;">No borrowers found</td></tr>';
             } else {
-                Object.keys(borrowerStats).forEach(name => {
-                    const stats = borrowerStats[name];
+                paginatedList.forEach(stats => {
                     // Determine status: Active if they have ongoing loans, Closed otherwise.
                     const statusText = stats.hasActive ? 'Active' : 'Closed';
                     const statusColor = stats.hasActive ? '#27ae60' : '#95a5a6';
 
+                    const refs = stats.refNos.length > 0 ? stats.refNos.join('<br>') : '-';
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${name}</td>
+                        <td>${stats.name}</td>
+                        <td style="font-size: 0.85rem; color: #555;">${refs}</td>
                         <td>${stats.mobile}</td>
                         <td>${stats.count}</td>
                         <td>₹${stats.total.toFixed(2)}</td>
                         <td style="color: ${statusColor}; font-weight: bold;">${statusText}</td>
-                        <td><a href="loan-profile.html?id=${stats.originalIndex}" target="_blank" style="background-color: #3498db; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-size: 12px;">View Profile</a></td>
+                        <td>
+                            <a href="loan-profile.html?id=${stats.originalIndex}" target="_blank" style="background-color: #3498db; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-size: 12px;">View Profile</a>
+                            <button class="delete-borrower-btn" data-name="${stats.name.replace(/"/g, '&quot;')}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 5px;">Delete</button>
+                        </td>
                     `;
                     tbody.appendChild(row);
                 });
             }
         };
         renderBorrowers();
+        
+        const searchInput = document.getElementById('borrower-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                currentPage = 1; // Reset to first page on search
+                renderBorrowers();
+            });
+        }
+
+        const prevBtn = document.getElementById('prev-page-btn');
+        const nextBtn = document.getElementById('next-page-btn');
+        if (prevBtn) prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) { currentPage--; renderBorrowers(); }
+        });
+        if (nextBtn) nextBtn.addEventListener('click', () => {
+            currentPage++; renderBorrowers(); // Validation happens inside renderBorrowers
+        });
+
+        // Export CSV Logic
+        const exportBtn = document.getElementById('export-borrowers-btn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                // 1. Aggregate Data (Same logic as renderBorrowers)
+                const borrowerStats = {};
+                loans.forEach((loan, index) => {
+                    const name = loan.borrower.trim();
+                    const isClosed = (loan.paidInstallments && loan.paidInstallments.length >= (parseInt(loan.tenure) || 1));
+
+                    if (!borrowerStats[name]) {
+                        borrowerStats[name] = { count: 0, total: 0, mobile: loan.mobile || 'N/A', hasActive: false, lastDate: loan.dueDate, refNos: [] };
+                    } else if (loan.dueDate > (borrowerStats[name].lastDate || '')) {
+                        borrowerStats[name].lastDate = loan.dueDate;
+                    }
+
+                    borrowerStats[name].count++;
+                    borrowerStats[name].total += parseFloat(loan.amount || 0);
+                    if (!isClosed) borrowerStats[name].hasActive = true;
+                    if (borrowerStats[name].mobile === 'N/A' && loan.mobile) borrowerStats[name].mobile = loan.mobile;
+                    if (loan.loanRef) borrowerStats[name].refNos.push(loan.loanRef);
+                });
+
+                let displayList = Object.keys(borrowerStats).map(name => ({
+                    name,
+                    ...borrowerStats[name]
+                })).sort((a, b) => new Date(b.lastDate || 0) - new Date(a.lastDate || 0));
+
+                // 2. Apply Search Filter
+                const searchInput = document.getElementById('borrower-search');
+                if (searchInput && searchInput.value) {
+                    const q = searchInput.value.toLowerCase();
+                    displayList = displayList.filter(b => 
+                        b.name.toLowerCase().includes(q) || 
+                        b.refNos.some(ref => ref.toLowerCase().includes(q))
+                    );
+                }
+
+                // 3. Generate CSV
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Name,Reference Nos,Mobile,Active Loans,Total Debt,Status\n";
+
+                displayList.forEach(b => {
+                    const row = [
+                        `"${b.name.replace(/"/g, '""')}"`,
+                        `"${b.refNos.join('; ')}"`,
+                        `"${b.mobile}"`,
+                        b.count,
+                        b.total.toFixed(2),
+                        b.hasActive ? 'Active' : 'Closed'
+                    ].join(",");
+                    csvContent += row + "\r\n";
+                });
+
+                // 4. Download
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "borrowers_list.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        }
+
+        tbody.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('delete-borrower-btn')) {
+                const name = e.target.getAttribute('data-name');
+                if (confirm(`Are you sure you want to delete borrower "${name}" and ALL associated loans? This action cannot be undone.`)) {
+                    const loansToDelete = loans.filter(l => l.borrower.trim() === name);
+                    
+                    // Remove from local array
+                    loans = loans.filter(l => l.borrower.trim() !== name);
+
+                    // Sync changes (Save new array to LS, delete docs from Firestore)
+                    // Use Promise.all to wait for all async deletions to complete
+                    const deletePromises = loansToDelete.map(loan => saveLoans(loan, true));
+                    await Promise.all(deletePromises);
+
+                    // The 'loans-updated' event will trigger a re-render from the snapshot listener if connected.
+                    // If not connected, this ensures the UI updates.
+                    document.dispatchEvent(new CustomEvent('loans-updated'));
+                }
+            }
+        });
+        
         document.addEventListener('loans-updated', renderBorrowers);
     }
 
@@ -1574,7 +1862,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const row = document.createElement('tr');
                     const daysOverdue = Math.floor((new Date() - nextDue) / (1000 * 60 * 60 * 24));
                     row.innerHTML = `
-                        <td>${loan.borrower}</td>
+                        <td>
+                            <div style="font-weight: 600;">${loan.borrower}</div>
+                            ${loan.loanRef ? `<div style="font-size: 0.75rem; color: #7f8c8d;">${loan.loanRef}</div>` : ''}
+                        </td>
                         <td>${loan.mobile || 'N/A'}</td>
                         <td>₹${parseFloat(loan.amount).toFixed(2)}</td>
                         <td>${nextDueDisplay}</td>
@@ -1626,11 +1917,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${loan.borrower}</td>
+                        <td>
+                            <div style="font-weight: 600;">${loan.borrower}</div>
+                            ${loan.loanRef ? `<div style="font-size: 0.75rem; color: #7f8c8d;">${loan.loanRef}</div>` : ''}
+                        </td>
                         <td>${loan.mobile || 'N/A'}</td>
                         <td>₹${parseFloat(loan.amount).toFixed(2)}</td>
                         <td>${formatDate(loan.dueDate)}</td>
-                        <td><button class="download-cert-btn" data-index="${originalIndex}" style="background-color: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Download Certificate</button></td>
+                        <td>
+                            <button class="download-cert-btn" data-index="${originalIndex}" style="background-color: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Download Certificate</button>
+                            <button class="delete-closed-loan-btn" data-index="${originalIndex}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
+                        </td>
                     `;
                     tbody.appendChild(row);
                 });
@@ -1642,12 +1939,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = closedLoansTable.querySelector('tbody');
 
         tbody.addEventListener('click', (e) => {
-            if (e.target.classList.contains('download-cert-btn')) {
+            if (e.target.classList.contains('delete-closed-loan-btn')) {
+                const index = e.target.getAttribute('data-index');
+                if (confirm('Are you sure you want to permanently delete this closed loan record?')) {
+                    const loanToDelete = loans[index];
+                    loans.splice(index, 1);
+                    saveLoans(loanToDelete, true);
+                    renderClosedLoans();
+                }
+            } else if (e.target.classList.contains('download-cert-btn')) {
                 const index = e.target.getAttribute('data-index');
                 const loan = loans[index];
                 
                 document.getElementById('cert-borrower').textContent = loan.borrower;
-                document.getElementById('cert-ref').textContent = `LN-${parseInt(index) + 1001}`;
+                document.getElementById('cert-ref').textContent = loan.loanRef || `LN-${parseInt(index) + 1001}`;
                 document.getElementById('cert-amount').textContent = parseFloat(loan.amount).toLocaleString();
                 document.getElementById('cert-date').textContent = formatDate(new Date());
 
@@ -1733,6 +2038,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         loan.paidInstallments.push(installmentNo);
                         loans[loanIndex] = loan; // Update specific loan
                         saveLoans(loan);
+
+                        // WhatsApp Receipt
+                        if (loan.mobile && loan.mobile !== 'N/A') {
+                            const msg = `Payment Receipt\n\nDear ${loan.borrower},\nReceived with thanks: ₹${emi.toFixed(2)}\nTowards: Installment #${installmentNo}\nDate: ${new Date().toLocaleDateString()}\n\nThank you!`;
+                            if(confirm("Open WhatsApp to send receipt?")) {
+                                window.open(`https://wa.me/${loan.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+                            }
+                        }
+
                         window.location.reload(); // Refresh to update UI
                     }
                 }
@@ -1822,31 +2136,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Populate Notifications (Overdue Loans)
         const updateNotifications = () => {
-            const today = new Date().toISOString().split('T')[0];
-            const overdueLoans = loans.filter(l => {
-                const nextDue = getNextDueDate(l);
-                return nextDue && nextDue.toISOString().split('T')[0] < today;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+            const alerts = [];
+
+            loans.forEach((loan, index) => {
+                const nextDue = getNextDueDate(loan);
+                if (!nextDue) return; // Skip closed loans
+
+                const daysDiff = Math.floor((nextDue - today) / (1000 * 60 * 60 * 24));
+
+                if (daysDiff < 0) {
+                    // Overdue
+                    alerts.push({
+                        type: 'Overdue',
+                        loan: loan,
+                        index: index,
+                        nextDue: nextDue,
+                        days: Math.abs(daysDiff)
+                    });
+                } else if (daysDiff <= 5) {
+                    // Upcoming
+                    alerts.push({
+                        type: 'Upcoming',
+                        loan: loan,
+                        index: index,
+                        nextDue: nextDue,
+                        days: daysDiff
+                    });
+                }
             });
-            
+
+            // Sort alerts: Overdue first, then by how soon they are due.
+            alerts.sort((a, b) => {
+                if (a.type === 'Overdue' && b.type !== 'Overdue') return -1;
+                if (a.type !== 'Overdue' && b.type === 'Overdue') return 1;
+                return a.days - b.days;
+            });
+
             notificationList.innerHTML = '';
-            
-            if (overdueLoans.length > 0) {
-                notificationCount.textContent = overdueLoans.length;
+
+            if (alerts.length > 0) {
+                notificationCount.textContent = alerts.length;
                 notificationCount.style.display = 'block';
 
-                overdueLoans.forEach(loan => {
-                    const index = loans.indexOf(loan);
-                    const nextDue = getNextDueDate(loan);
-                    const nextDueDisplay = nextDue ? formatDate(nextDue) : 'N/A';
-                    const daysOverdue = Math.floor((new Date() - nextDue) / (1000 * 60 * 60 * 24));
+                alerts.forEach(alert => {
+                    const { loan, index, nextDue, days } = alert;
+                    const nextDueDisplay = formatDate(nextDue);
                     const li = document.createElement('li');
+
+                    let title, subtitle, color;
+                    if (alert.type === 'Overdue') {
+                        title = `Overdue: ${loan.borrower}`;
+                        subtitle = `${days} Days Overdue`;
+                        color = '#e74c3c'; // Red
+                    } else {
+                        title = `Due Soon: ${loan.borrower}`;
+                        subtitle = days === 0 ? 'Due Today' : `Due in ${days} Days`;
+                        color = '#f39c12'; // Orange
+                    }
+
                     li.innerHTML = `
                         <div class="alert-item">
-                            <span class="alert-title">Overdue: ${loan.borrower}</span>
+                            <span class="alert-title" style="color: ${color};">${title}</span>
                             <span>Amount: ₹${parseFloat(loan.amount).toFixed(2)}</span>
                             <div style="display: flex; justify-content: space-between;">
                                 <small style="color:#999">Due: ${nextDueDisplay}</small>
-                                <small style="color:#e74c3c; font-weight:bold;">${daysOverdue} Days Overdue</small>
+                                <small style="color:${color}; font-weight:bold;">${subtitle}</small>
                             </div>
                             <button class="view-alert-btn" data-index="${index}" style="background-color: #3498db; color: white; border: none; padding: 5px; width: 100%; margin-top: 5px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Loan Profile</button>
                         </div>
@@ -1909,35 +2266,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const opt = {
                 margin: 0,
                 filename: 'Blank_Loan_Application_Form.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            html2pdf().set(opt).from(element).save();
-        });
-    }
-
-    const downloadAgreementBtn = document.getElementById('download-agreement-btn');
-    if (downloadAgreementBtn) {
-        downloadAgreementBtn.addEventListener('click', () => {
-            const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-            
-            // Populate hidden agreement form with company details
-            if (savedProfile.name) {
-                document.getElementById('ag-company-name').innerText = (savedProfile.name).toUpperCase();
-                document.getElementById('ag-company-sign-name').innerText = savedProfile.name;
-            }
-            if (savedProfile.address) document.getElementById('ag-company-address').innerText = savedProfile.address;
-            
-            let contactInfo = [];
-            if (savedProfile.contact) contactInfo.push('Ph: ' + savedProfile.contact);
-            if (savedProfile.email) contactInfo.push('Email: ' + savedProfile.email);
-            if (contactInfo.length > 0) document.getElementById('ag-company-contact-section').innerText = ' (' + contactInfo.join(', ') + ')';
-
-            const element = document.getElementById('blank-agreement-form');
-            const opt = {
-                margin: 0,
-                filename: 'Loan_Agreement_Template.pdf',
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }

@@ -13,6 +13,53 @@
         .paper-wrapper { display: block !important; margin: 0 auto; max-width: 210mm; }
         .btn-back { position: absolute; top: 20px; left: 20px; color: white; text-decoration: none; font-weight: bold; font-family: sans-serif; }
         .btn-back:hover { text-decoration: underline; }
+
+        /* Success Popup Styles */
+        .success-popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+        .success-popup-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+            animation: popupSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 90%;
+            width: 350px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .success-icon-circle {
+            width: 70px;
+            height: 70px;
+            background: #27ae60;
+            color: white;
+            border-radius: 50%;
+            font-size: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px auto;
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
+        }
+        .success-popup-content h3 { margin: 0 0 10px 0; color: #2c3e50; font-size: 24px; }
+        .success-popup-content p { color: #7f8c8d; margin-bottom: 25px; font-size: 16px; line-height: 1.5; }
+        .success-popup-btn { background: #27ae60; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-size: 16px; font-weight: bold; transition: transform 0.2s, background 0.2s; box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
+        .success-popup-btn:hover { background: #219150; transform: translateY(-2px); }
+        @keyframes popupSlideIn {
+            from { transform: scale(0.8) translateY(20px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -22,9 +69,9 @@
         <form id="paperLoanForm">
             <div class="paper-container">
                 <div class="paper-header">
-                    <h1>SANJARANG PRIVATE LIMITED</h1>
+                    <h1>SANJARANG GROUP PVT. LTD.</h1>
                     <h2>LOAN APPLICATION FORM</h2>
-                    <p>FORM - A</p>
+                    <p>FORM - A <span id="display-loan-ref" style="float: right; font-weight: bold; font-size: 14px; color: #c0392b;"></span></p>
                 </div>
 
                 <div class="form-section">
@@ -108,12 +155,23 @@
                 </div>
 
                 <div class="btn-container">
-                    <button type="submit" class="btn">Save Application</button>
+                    <button type="submit" class="btn">Sumit</button>
                     <button type="button" class="btn btn-print" id="cancelLoanBtn" style="background-color: #6c757d;">Cancel</button>
                 </div>
             </div>
         </form>
     </div>
+
+    <!-- Success Popup HTML -->
+    <div id="success-popup" class="success-popup-overlay">
+        <div class="success-popup-content">
+            <div class="success-icon-circle">✓</div>
+            <h3>Success!</h3>
+            <p id="success-message">Loan Application Saved Successfully!</p>
+            <button id="close-success-btn" class="success-popup-btn">OK</button>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

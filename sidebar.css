@@ -76,7 +76,11 @@
     flex-direction: column;
     gap: 0.5rem;
     flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
 }
+/* Hide scrollbar for Chrome/Safari/Opera */
+.sidebar nav::-webkit-scrollbar { display: none; }
 
 .sidebar nav a {
     color: #bdc3c7;
@@ -85,6 +89,10 @@
     border-radius: 6px;
     transition: all 0.3s ease;
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
 }
 
 .sidebar nav a i {
@@ -148,4 +156,25 @@
     overflow-y: auto;
     margin: 0;
     border-radius: 0;
+}
+
+/* Global Button Hover Effect */
+button:hover:not([disabled]),
+.btn:hover:not([disabled]),
+.theme-btn:hover:not([disabled]),
+.icon-btn:hover:not([disabled]),
+input[type="submit"]:hover:not([disabled]) {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+/* Global Button Click Effect */
+button:active:not([disabled]),
+.btn:active:not([disabled]),
+.theme-btn:active:not([disabled]),
+.icon-btn:active:not([disabled]),
+input[type="submit"]:active:not([disabled]) {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
 }

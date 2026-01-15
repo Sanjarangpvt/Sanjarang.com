@@ -248,6 +248,22 @@
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
 
+        /* Spinner Styles */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         @media (max-width: 768px) {
             .login-card {
                 flex-direction: column;
@@ -278,6 +294,11 @@
             
             <div id="error-message" class="error-msg">Invalid username or password</div>
             
+            <div class="login-type-toggle" style="display: flex; background: #f0f2f5; padding: 5px; border-radius: 12px; margin-bottom: 20px;">
+                <button type="button" id="btn-admin" class="active" style="flex: 1; border: none; background: white; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: bold; color: #667eea; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: all 0.3s;">Admin</button>
+                <button type="button" id="btn-employee" style="flex: 1; border: none; background: transparent; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: bold; color: #7f8c8d; transition: all 0.3s;">Employee</button>
+            </div>
+
             <form id="login-form">
                 <div class="form-group">
                     <label for="username">Email</label>
@@ -294,8 +315,7 @@
             </form>
             
             <div class="footer-links" style="text-align: center;">
-                <p>Default Login: <strong>admin</strong> / <strong>admin</strong></p>
-                <a href="#">Forgot Password?</a>
+                <a href="#" id="forgot-password-link">Forgot Password?</a>
             </div>
         </div>
     </div>

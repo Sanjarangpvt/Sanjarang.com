@@ -14,19 +14,27 @@
     <div class="app-layout">
         <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="sidebar-header">
-                <img id="sidebar-logo" src="" alt="" style="display: none;">
-                <span id="sidebar-company-name">LOAN MANAGER</span>
+              <div class="sidebar-header">
+                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
+                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
             </div>
             <nav>
                 <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
                 <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
                 <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
                 <a href="expenses.html" class="active"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
+                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
                 <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
                 <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
                 <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
+                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
             </nav>
+            <div class="sidebar-footer">
+                <button id="sidebar-collapse-btn" class="collapse-btn">
+                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
+                    <span class="link-text">Collapse Sidebar</span>
+                </button>
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -75,6 +83,7 @@
                                 <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Date</th>
                                 <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Description</th>
                                 <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Category</th>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Status</th>
                                 <th style="text-align: right; padding: 10px; border-bottom: 1px solid #eee;">Amount</th>
                                 <th style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">Action</th>
                             </tr>

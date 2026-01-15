@@ -33,6 +33,26 @@ document.addEventListener('DOMContentLoaded', () => {
         let loans = JSON.parse(localStorage.getItem('loans')) || [];
         let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
 
+        // --- FIRESTORE SETUP ---
+        let db;
+        let firestoreOps = {};
+
+        const initFirestore = async () => {
+            try {
+                const { app } = await import('./firebase-config.js');
+                const { getFirestore, collection, onSnapshot, doc, addDoc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                db = getFirestore(app);
+                firestoreOps = { collection, addDoc, deleteDoc, doc };
+
+                onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
+                    walletTransactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                    localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
+                    renderWallet();
+                });
+            } catch (e) { console.error("Firestore init failed:", e); }
+        };
+        initFirestore();
+
         let currentPage = 1;
         const rowsPerPage = 15;
 
@@ -49,7 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     isCredit: t.type === 'Deposit',
                     borrower: '-',
                     source: 'manual',
-                    originalIndex: index
+                    originalIndex: index,
+                    id: t.id // Include Firestore ID
                 });
             });
 
@@ -311,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; width: 15%; color: ${color}; font-weight: bold;">${sign}₹${t.amount.toFixed(2)}</td>
                         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center; width: 10%;">
-                            <button class="delete-trans-btn" data-source="${t.source}" data-index="${t.originalIndex}" style="background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 1.1rem;" title="Delete">🗑️</button>
+                            <button class="delete-trans-btn" data-source="${t.source}" data-index="${t.originalIndex}" data-id="${t.id || ''}" style="background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 1.1rem;" title="Delete">🗑️</button>
                         </td>
                     `;
                     transTableBody.appendChild(row);
@@ -323,16 +344,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Delete Transaction Handler
         transTableBody.addEventListener('click', (e) => {
-            if (e.target.classList.contains('delete-trans-btn') || e.target.closest('.delete-trans-btn')) {
-                const btn = e.target.classList.contains('delete-trans-btn') ? e.target : e.target.closest('.delete-trans-btn');
+            let target = e.target;
+            // Handle clicks on text nodes (e.g., the emoji icon)
+            if (target.nodeType === 3) target = target.parentNode;
+            
+            const btn = target.closest ? target.closest('.delete-trans-btn') : null;
+
+            if (btn) {
                 const source = btn.getAttribute('data-source');
                 const index = btn.getAttribute('data-index');
+                const id = btn.getAttribute('data-id');
 
                 if (source === 'manual') {
                     if (confirm('Are you sure you want to delete this transaction?')) {
-                        walletTransactions.splice(index, 1);
-                        localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
-                        renderWallet();
+                        if (db && firestoreOps.deleteDoc && id) {
+                            firestoreOps.deleteDoc(firestoreOps.doc(db, "wallet_transactions", id))
+                                .catch(e => alert("Error deleting: " + e.message));
+                        } else {
+                            walletTransactions.splice(index, 1);
+                            localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
+                            renderWallet();
+                        }
                     }
                 } else {
                     alert('This transaction is linked to a loan record. Please manage it from the Loan Profile or Manage Loans page.');
@@ -417,19 +449,26 @@ document.addEventListener('DOMContentLoaded', () => {
         window.onclick = (e) => { if (e.target == transModal) transModal.style.display = 'none'; };
 
         if (transForm) {
-            transForm.addEventListener('submit', (e) => {
+            transForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const newTrans = {
                     date: new Date().toISOString(),
                     type: document.getElementById('trans-type').value,
-                    amount: document.getElementById('trans-amount').value,
+                    amount: parseFloat(document.getElementById('trans-amount').value),
                     description: document.getElementById('trans-desc').value
                 };
-                walletTransactions.push(newTrans);
-                localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
-                transModal.style.display = 'none';
-                transForm.reset();
-                renderWallet();
+
+                if (db && firestoreOps.addDoc) {
+                    await firestoreOps.addDoc(firestoreOps.collection(db, "wallet_transactions"), newTrans);
+                    transModal.style.display = 'none';
+                    transForm.reset();
+                } else {
+                    walletTransactions.push(newTrans);
+                    localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
+                    transModal.style.display = 'none';
+                    transForm.reset();
+                    renderWallet();
+                }
             });
         }
     }

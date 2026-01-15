@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- ACCESS CONTROL ---
+    const userRole = localStorage.getItem('userRole');
+    if (userRole !== 'Administrator') {
+        alert('Access Denied: Only Administrators can access Settings.');
+        window.location.href = 'dashboard.html';
+        return;
+    }
+
     // --- INITIALIZE FLATPICKR (DATE PICKER) ---
     if (typeof flatpickr !== 'undefined') {
         flatpickr('input[type="date"]', {
@@ -10,6 +18,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- SETTINGS PAGE LOGIC (settings.html) ---
+
+    // --- FIRESTORE SETUP ---
+    let db;
+    let firestoreOps = {};
+
+    const initFirestore = async () => {
+        try {
+            const { app } = await import('./firebase-config.js');
+            const { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, writeBatch, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            db = getFirestore(app);
+            firestoreOps = { collection, doc, setDoc, addDoc, deleteDoc, writeBatch, updateDoc };
+
+            // Sync Employees
+            onSnapshot(collection(db, "employees"), (snapshot) => {
+                const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })); // Firestore ID is used as 'id' if manual ID not present, but we use manual IDs for employees usually.
+                // Actually, we store manual ID in 'id' field. Firestore doc ID can be same.
+                localStorage.setItem('employees', JSON.stringify(employees));
+                renderEmployees();
+            });
+
+            // Sync Admins
+            onSnapshot(collection(db, "admin_users"), (snapshot) => {
+                const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+                localStorage.setItem('adminUsers', JSON.stringify(admins));
+                if (typeof renderAdmins === 'function') renderAdmins();
+            });
+
+        } catch (e) { console.error("Firestore init failed:", e); }
+    };
+    initFirestore();
 
     // Helper for date formatting (dd/mm/yyyy)
     const formatDate = (dateInput) => {
@@ -45,13 +83,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const loans = JSON.parse(localStorage.getItem('loans')) || [];
                 const employees = JSON.parse(localStorage.getItem('employees')) || [];
                 const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+                const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
                 const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+                const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
 
                 // Prepare Batches
                 const batchSize = 450; 
                 let batches = [];
                 let currentBatch = writeBatch(db);
                 let operationCount = 0;
+
+                // Helper to sanitize data (remove undefined values which cause Firestore errors)
+                const sanitize = (obj) => JSON.parse(JSON.stringify(obj));
 
                 const addToBatch = (ref, data) => {
                     currentBatch.set(ref, data);
@@ -67,23 +110,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 loans.forEach((loan, index) => {
                     const loanId = loan.id || `loan_${Date.now()}_${index}`;
                     const loanRef = doc(db, "loans", loanId); 
-                    addToBatch(loanRef, loan);
+                    addToBatch(loanRef, sanitize(loan));
                 });
 
                 employees.forEach((emp, index) => {
                     const empId = emp.id || `emp_${Date.now()}_${index}`;
                     const empRef = doc(db, "employees", empId);
-                    addToBatch(empRef, emp);
+                    addToBatch(empRef, sanitize(emp));
                 });
 
                 expenses.forEach((exp, index) => {
-                    const expId = `exp_${Date.now()}_${index}`;
+                    const expId = exp.id || `exp_${Date.now()}_${index}`;
                     const expRef = doc(db, "expenses", expId);
-                    addToBatch(expRef, exp);
+                    addToBatch(expRef, sanitize(exp));
+                });
+
+                walletTransactions.forEach((trans, index) => {
+                    const transId = trans.id || `trans_${Date.now()}_${index}`;
+                    const transRef = doc(db, "wallet_transactions", transId);
+                    addToBatch(transRef, sanitize(trans));
+                });
+
+                admins.forEach((admin, index) => {
+                    const adminRef = doc(db, "admin_users", admin.username); // Use username as ID
+                    addToBatch(adminRef, sanitize(admin));
                 });
 
                 const profileRef = doc(db, "settings", "companyProfile");
-                addToBatch(profileRef, profile);
+                addToBatch(profileRef, sanitize(profile));
 
                 if (operationCount > 0) batches.push(currentBatch);
 
@@ -114,6 +168,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // --- BACKUP DATA LOGIC ---
+    const backupBtn = document.getElementById('backupDataBtn');
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => {
+            const data = {
+                loans: JSON.parse(localStorage.getItem('loans')) || [],
+                employees: JSON.parse(localStorage.getItem('employees')) || [],
+                expenses: JSON.parse(localStorage.getItem('expenses')) || [],
+                walletTransactions: JSON.parse(localStorage.getItem('walletTransactions')) || [],
+                companyProfile: JSON.parse(localStorage.getItem('companyProfile')) || {},
+                adminUsers: JSON.parse(localStorage.getItem('adminUsers')) || [],
+                customForms: JSON.parse(localStorage.getItem('customForms')) || [],
+                preferences: {
+                    theme: localStorage.getItem('appTheme'),
+                    bgOpacity: localStorage.getItem('appBgOpacity'),
+                    bgBlur: localStorage.getItem('appBgBlur'),
+                    themeTransparency: localStorage.getItem('appThemeTransparency')
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `LoanManager_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    }
+
     // 1. Data Management (Clear Data)
     const clearDataBtn = document.getElementById('clearDataBtn');
     if (clearDataBtn) {
@@ -166,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const emp = employees[idx];
                 
                 document.getElementById('emp-id').value = emp.id;
+                document.getElementById('emp-password').value = emp.password || '';
                 document.getElementById('emp-name').value = emp.name;
                 document.getElementById('emp-designation').value = emp.designation;
                 document.getElementById('emp-department').value = emp.department;
@@ -188,10 +275,15 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 const idx = e.target.getAttribute('data-index');
                 if (confirm('Delete this employee?')) {
-                    const currentEmployees = JSON.parse(localStorage.getItem('employees')) || [];
-                    currentEmployees.splice(idx, 1);
-                    localStorage.setItem('employees', JSON.stringify(currentEmployees));
-                    renderEmployees();
+                    const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                    const emp = employees[idx];
+                    if (db && firestoreOps.deleteDoc && emp.id) {
+                        firestoreOps.deleteDoc(firestoreOps.doc(db, "employees", emp.id));
+                    } else {
+                        employees.splice(idx, 1);
+                        localStorage.setItem('employees', JSON.stringify(employees));
+                        renderEmployees();
+                    }
                 }
             });
         });
@@ -212,6 +304,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Generate PDF
                 const element = document.getElementById('id-card-template');
+                if (!element) {
+                    alert('ID Card template not found on this page.');
+                    return;
+                }
                 const opt = {
                     margin: 0,
                     filename: `ID_Card_${emp.id}.pdf`,
@@ -255,11 +351,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Employee Management - Form (Runs on add-employee.html)
     const createEmployeeForm = document.getElementById('createEmployeeForm');
     if (createEmployeeForm) {
-        createEmployeeForm.addEventListener('submit', (e) => {
+        createEmployeeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const newEmployee = {
                 id: document.getElementById('emp-id').value,
+                password: document.getElementById('emp-password').value,
                 name: document.getElementById('emp-name').value,
                 designation: document.getElementById('emp-designation').value,
                 department: document.getElementById('emp-department').value,
@@ -273,32 +370,47 @@ document.addEventListener('DOMContentLoaded', () => {
             let employees = JSON.parse(localStorage.getItem('employees')) || [];
             
             if (editingIndex >= 0) {
-                // Update Existing
+                // Update Existing (Local Check)
                 if (employees.some((emp, i) => emp.id === newEmployee.id && i != editingIndex)) {
                     alert('Error: Employee ID already exists!');
                     return;
                 }
                 newEmployee.createdAt = employees[editingIndex].createdAt; // Preserve creation date
-                employees[editingIndex] = newEmployee;
-                alert('Employee Updated Successfully!');
+                
+                if (db && firestoreOps.setDoc) {
+                    await firestoreOps.setDoc(firestoreOps.doc(db, "employees", newEmployee.id), newEmployee);
+                    alert('Employee Updated Successfully!');
+                } else {
+                    employees[editingIndex] = newEmployee;
+                    localStorage.setItem('employees', JSON.stringify(employees));
+                    renderEmployees();
+                    alert('Employee Updated Locally!');
+                }
                 
                 editingIndex = -1;
                 const submitBtn = createEmployeeForm.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = 'Create Employee ID';
             } else {
-                // Create New
+                // Create New (Local Check)
                 if (employees.some(emp => emp.id === newEmployee.id)) {
                     alert('Error: Employee ID already exists!');
                     return;
                 }
-                employees.push(newEmployee);
-                alert('Employee ID Created Successfully!');
+                
+                if (db && firestoreOps.setDoc) {
+                    await firestoreOps.setDoc(firestoreOps.doc(db, "employees", newEmployee.id), newEmployee);
+                    alert('Employee ID Created Successfully!');
+                } else {
+                    employees.push(newEmployee);
+                    localStorage.setItem('employees', JSON.stringify(employees));
+                    renderEmployees();
+                    alert('Employee ID Created Locally!');
+                }
             }
 
-            localStorage.setItem('employees', JSON.stringify(employees));
+            // Local storage update handled by onSnapshot
             
             createEmployeeForm.reset();
-            renderEmployees(); // Update list on same page
             if (empModal) empModal.style.display = 'none'; // Close modal if exists
         });
     }
@@ -333,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('profile-role').value = userObj.role || 'Administrator';
         }
 
-        adminProfileForm.addEventListener('submit', (e) => {
+        adminProfileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const newUsername = document.getElementById('profile-username').value.trim();
             const newEmail = document.getElementById('profile-email').value.trim();
@@ -350,25 +462,27 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Find index of current user in storage
             let targetIndex = currentAdmins.findIndex(a => a.username.toLowerCase() === currentUser.toLowerCase());
+            let adminData = targetIndex !== -1 ? currentAdmins[targetIndex] : {};
             
-            if (targetIndex === -1) {
-                // If current user is default 'admin' and not in DB yet, create entry
-                const newObj = {
-                    username: newUsername,
-                    email: newEmail,
-                    password: newPassword || 'admin', // Default password if not changed
-                    role: newRole
-                };
-                currentAdmins.push(newObj);
+            adminData.username = newUsername;
+            adminData.email = newEmail;
+            adminData.role = newRole;
+            if (newPassword) adminData.password = newPassword;
+            if (!adminData.password && targetIndex === -1) adminData.password = 'admin'; // Default
+
+            if (db && firestoreOps.setDoc) {
+                // If username changed, we might want to delete old doc and create new, but for simplicity let's just save to new ID
+                // Ideally we delete the old one if username changed.
+                if (currentUser !== newUsername && firestoreOps.deleteDoc) {
+                     await firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", currentUser));
+                }
+                await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", newUsername), adminData);
             } else {
-                // Update existing entry
-                currentAdmins[targetIndex].username = newUsername;
-                currentAdmins[targetIndex].email = newEmail;
-                currentAdmins[targetIndex].role = newRole;
-                if (newPassword) currentAdmins[targetIndex].password = newPassword;
+                if (targetIndex === -1) currentAdmins.push(adminData);
+                else currentAdmins[targetIndex] = adminData;
+                localStorage.setItem('adminUsers', JSON.stringify(currentAdmins));
             }
 
-            localStorage.setItem('adminUsers', JSON.stringify(currentAdmins));
             localStorage.setItem('currentUser', newUsername);
             
             alert('Profile updated successfully.');
@@ -420,9 +534,14 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 if(confirm('Delete this admin user?')) {
                     const idx = e.target.getAttribute('data-index');
-                    admins.splice(idx, 1);
-                    localStorage.setItem('adminUsers', JSON.stringify(admins));
-                    renderAdmins();
+                    const admin = admins[idx];
+                    if (db && firestoreOps.deleteDoc) {
+                        firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", admin.username || admin.firestoreId));
+                    } else {
+                        admins.splice(idx, 1);
+                        localStorage.setItem('adminUsers', JSON.stringify(admins));
+                        renderAdmins();
+                    }
                 }
             });
         });
@@ -430,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (createAdminForm) {
         renderAdmins();
-        createAdminForm.addEventListener('submit', (e) => {
+        createAdminForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const u = document.getElementById('admin-username').value.trim();
             const p = document.getElementById('admin-password').value;
@@ -442,10 +561,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('Username already exists!');
                     return;
                 }
-                admins.push({ username: u, password: p, role: r });
-                localStorage.setItem('adminUsers', JSON.stringify(admins));
+                
+                if (db && firestoreOps.setDoc) {
+                    await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", u), { username: u, password: p, role: r });
+                } else {
+                    admins.push({ username: u, password: p, role: r });
+                    localStorage.setItem('adminUsers', JSON.stringify(admins));
+                    renderAdmins();
+                }
+                
                 createAdminForm.reset();
-                renderAdmins();
                 alert('Admin created successfully.');
             }
         });
@@ -477,6 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeTransparencyInput = document.getElementById('theme-transparency');
     const transparencyValDisplay = document.getElementById('transparency-val');
     const uploadBgBtn = document.getElementById('upload-bg-btn');
+    const resetThemeBtn = document.getElementById('reset-theme-btn');
 
     // Theme Selection
     themeBtns.forEach(btn => {
@@ -612,6 +738,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
             clearBgBtn.style.display = 'none';
             bgUpload.value = '';
+        });
+    }
+
+    // Reset Theme Logic
+    if (resetThemeBtn) {
+        resetThemeBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset all theme settings to default?')) {
+                // Clear LocalStorage
+                localStorage.removeItem('appTheme');
+                localStorage.removeItem('appCustomBg');
+                localStorage.removeItem('appBgOpacity');
+                localStorage.removeItem('appBgBlur');
+                localStorage.removeItem('appThemeTransparency');
+
+                // Reset UI Controls
+                if (bgOpacityInput) { bgOpacityInput.value = '1'; if (opacityValDisplay) opacityValDisplay.textContent = '100%'; }
+                if (bgBlurInput) { bgBlurInput.value = '0'; if (blurValDisplay) blurValDisplay.textContent = '0px'; }
+                if (themeTransparencyInput) { themeTransparencyInput.value = '0.65'; if (transparencyValDisplay) transparencyValDisplay.textContent = '65%'; }
+                if (bgUpload) bgUpload.value = '';
+                if (clearBgBtn) clearBgBtn.style.display = 'none';
+
+                // Apply Default Styles
+                document.body.classList.remove('dark-mode', 'blue-theme', 'green-theme', 'glass-theme', 'custom-bg-active');
+                document.documentElement.style.setProperty('--glass-opacity', '0.65');
+                
+                const overlay = document.getElementById('bg-overlay');
+                if (overlay) {
+                    overlay.style.backgroundImage = '';
+                    overlay.style.opacity = '1';
+                    overlay.style.filter = 'blur(0px)';
+                }
+                
+                const mainContent = document.querySelector('.main-content');
+                const appLayout = document.querySelector('.app-layout');
+                if (mainContent) mainContent.style.backgroundColor = '';
+                if (appLayout) appLayout.style.backgroundColor = '';
+
+                alert('Theme settings have been reset.');
+            }
         });
     }
 });
