@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Loan Book</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+             <div class="sidebar-header">
+                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
+                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
+            </div>
+            <nav>
+                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
+                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
+                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
+                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
+                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
+                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
+                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
+                <a href="settings.html" class="active"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
+                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="sidebar-collapse-btn" class="collapse-btn">
+                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
+                    <span class="link-text">Collapse Sidebar</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="custom-header-box">
+                <div class="header-container">
+                    <div class="header-left">
+                        <button id="sidebar-toggle" class="icon-btn">☰</button>
+                        <div class="header-title-group">
+                            <h1>Settings</h1>
+                            <div class="user-profile">
+                                <span class="user-name">Admin</span>
+                                <span class="user-role">Administrator</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <main>
+                <section class="card">
+                    <h2>Demo Content</h2>
+                    <p>Populate your database with sample borrowers and loans to test the dashboard.</p>
+                    <button id="loadDemoBtn" style="background-color: #3498db; margin-top: 10px;">Load Demo Data</button>
+                </section>
+                <section class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 2px solid #f0f2f5; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                        <h2 style="margin: 0; border: none; padding: 0;">Admin Profile Settings</h2>
+                        <button id="toggle-admin-profile-btn" style="background-color: #95a5a6; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Show</button>
+                    </div>
+                    <div id="admin-profile-content" style="display: none;">
+                        <p>Update your login credentials and contact info.</p>
+                        <form id="adminProfileForm">
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">User ID (Username)</label>
+                            <input type="text" id="profile-username" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Gmail ID (Email)</label>
+                            <input type="email" id="profile-email" placeholder="admin@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">New Password</label>
+                            <input type="password" id="profile-password" placeholder="Leave blank to keep current">
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Role</label>
+                            <select id="profile-role" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="Administrator">Administrator</option>
+                                <option value="Staff">Staff</option>
+                            </select>
+                        </div>
+                        <button type="submit" style="margin-top: 10px; background-color: #3498db;">Update Profile</button>
+                    </form>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Employee Management</h2>
+                    <p>Create new employee IDs and manage staff details.</p>
+                    <a href="manage-staff.html" style="display: inline-block; margin-top: 20px; background-color: #27ae60; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Manage Staff</a>
+                </section>
+                <section class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 2px solid #f0f2f5; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                        <h2 style="margin: 0; border: none; padding: 0;">Admin Access Control</h2>
+                        <button id="toggle-admin-access-btn" style="background-color: #95a5a6; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Show</button>
+                    </div>
+                    <div id="admin-access-content" style="display: none;">
+                        <p>Create and manage administrator accounts for system access.</p>
+                    <form id="createAdminForm" style="margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Username</label>
+                            <input type="text" id="admin-username" placeholder="Enter Username" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Password</label>
+                            <input type="password" id="admin-password" placeholder="Enter Password" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Role</label>
+                            <select id="admin-role" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="Administrator">Administrator</option>
+                                <option value="Staff">Staff</option>
+                            </select>
+                        </div>
+                        <button type="submit" style="margin-top: 10px; background-color: #8e44ad;">Create Admin</button>
+                    </form>
+                    <table id="admin-list-table"><thead><tr><th>Username</th><th>Role</th><th>Action</th></tr></thead><tbody></tbody></table>
+                    </div>
+                </section>
+                <section class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 2px solid #f0f2f5; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                        <h2 style="margin: 0; border: none; padding: 0;">Theme Customization</h2>
+                        <button id="toggle-theme-btn" style="background-color: #95a5a6; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Show</button>
+                    </div>
+                    <div id="theme-content" style="display: none;">
+                        <p>Personalize the application appearance.</p>
+                        <div class="form-group">
+                            <label>Color Theme</label>
+                            <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap;">
+                                <button class="theme-btn" data-theme="light" style="padding: 8px 15px; border: 1px solid #ddd; background: #f0f2f5; color: #333; cursor: pointer; border-radius: 4px; font-weight: bold;">Light</button>
+                                <button class="theme-btn" data-theme="dark" style="padding: 8px 15px; border: 1px solid #333; background: #2c3e50; color: white; cursor: pointer; border-radius: 4px; font-weight: bold;">Dark</button>
+                                <button class="theme-btn" data-theme="blue" style="padding: 8px 15px; border: 1px solid #1e3a8a; background: #1e3a8a; color: white; cursor: pointer; border-radius: 4px; font-weight: bold;">Blue</button>
+                                <button class="theme-btn" data-theme="green" style="padding: 8px 15px; border: 1px solid #064e3b; background: #064e3b; color: white; cursor: pointer; border-radius: 4px; font-weight: bold;">Green</button>
+                                <button class="theme-btn" data-theme="glass" style="padding: 8px 15px; border: 1px solid #a8a8a8; background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 100%); color: #333; cursor: pointer; border-radius: 4px; font-weight: bold;">Glass</button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Customize Background (Upload Image)</label>
+                            <input type="file" id="bg-upload" accept="image/*">
+                            <button id="upload-bg-btn" style="margin-top: 10px; background-color: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Upload</button>
+                            <div style="margin-top: 10px; width: 100%;">
+                                <label style="font-weight: normal; font-size: 0.9rem;">Background Opacity: <span id="opacity-val">100%</span></label>
+                                <input type="range" id="bg-opacity" min="0.1" max="1" step="0.1" value="1" style="width: 100%; cursor: pointer;">
+                            </div>
+                            <div style="margin-top: 10px; width: 100%;">
+                                <label style="font-weight: normal; font-size: 0.9rem;">Background Blur: <span id="blur-val">0px</span></label>
+                                <input type="range" id="bg-blur" min="0" max="20" step="1" value="0" style="width: 100%; cursor: pointer;">
+                            </div>
+                            <div style="margin-top: 10px; width: 100%;">
+                                <label style="font-weight: normal; font-size: 0.9rem;">Theme Transparency: <span id="transparency-val">65%</span></label>
+                                <input type="range" id="theme-transparency" min="0.1" max="1" step="0.05" value="0.65" style="width: 100%; cursor: pointer;">
+                            </div>
+                            <button id="clear-bg-btn" style="margin-top: 10px; background-color: #e74c3c; display: none;">Remove Background Image</button>
+                            <button id="reset-theme-btn" style="margin-top: 10px; margin-left: 5px; background-color: #7f8c8d; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Reset Defaults</button>
+                        </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Cloud Sync</h2>
+                    <p>Migrate your local data to Firebase Cloud Firestore.</p>
+                    <div style="margin-top: 15px;">
+                        <button id="migrateBtn" style="background-color: #8e44ad; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Migrate to Firestore</button>
+                        <p id="migrationStatus" style="margin-top: 10px; font-weight: bold; font-size: 0.9rem;"></p>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Data Management</h2>
+                    <div style="margin-top: 20px; padding: 20px; border: 1px solid #e74c3c; border-radius: 8px; background-color: #fff5f5;">
+                        <h3 style="color: #c0392b; margin-top: 0;">Danger Zone</h3>
+                        <p>This action cannot be undone. It will permanently delete all loan records and reset your dashboard.</p>
+                        <button id="clearDataBtn" style="background-color: #e74c3c; margin-top: 10px;">Clear All Data</button>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+    <script src="app.js" defer></script>
+    <script src="settings.js" defer></script>
+</body>
+</html>

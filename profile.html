@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Profile - Loan Book</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+     <aside class="sidebar">
+             <div class="sidebar-header">
+                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
+                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
+            </div>
+            <nav>
+                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
+                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
+                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
+                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
+                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
+                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
+                <a href="profile.html" class="active"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
+                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
+                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="sidebar-collapse-btn" class="collapse-btn">
+                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
+                    <span class="link-text">Collapse Sidebar</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="custom-header-box">
+                <div class="header-container">
+                    <div class="header-left">
+                        <button id="sidebar-toggle" class="icon-btn">☰</button>
+                        <div class="header-title-group">
+                            <h1>Company Profile</h1>
+                            <div class="user-profile">
+                                <span class="user-name">Admin</span>
+                                <span class="user-role">Administrator</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <main>
+                <section class="card">
+                    <h2>Organization Details</h2>
+                    <form id="companyProfileForm">
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Company Name</label>
+                            <input type="text" id="cp-name" placeholder="Enter Company Name" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Registered Address</label>
+                            <input type="text" id="cp-address" placeholder="Enter Address" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Contact Number</label>
+                            <input type="text" id="cp-contact" placeholder="Enter Contact Number">
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Email</label>
+                            <input type="email" id="cp-email" placeholder="Enter Email">
+                        </div>
+                        <div class="form-group">
+                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Company Logo</label>
+                            <input type="file" id="cp-logo-upload" accept="image/*" style="padding: 5px;">
+                            <div style="margin-top: 10px; width: 100%;">
+                                <img id="cp-logo-preview" src="" alt="Logo Preview" style="max-height: 80px; display: none; border: 1px solid #ddd; padding: 5px; border-radius: 4px;">
+                            </div>
+                        </div>
+                        <button type="submit" style="margin-top: 20px;">Save Details</button>
+                    </form>
+                </section>
+            </main>
+        </div>
+    </div>
+    <script src="app.js" defer></script>
+</body>
+</html>

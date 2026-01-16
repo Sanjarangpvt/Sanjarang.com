@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Profile</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { background-color: #525659; padding: 20px; margin: 0; }
+        .paper-wrapper { display: block; margin: 0 auto; max-width: 210mm; }
+        .btn-container { text-align: center; margin-bottom: 20px; }
+        .btn-back { background-color: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-right: 10px; }
+        
+        /* Formal Document Styling Overrides */
+        .paper-container {
+            font-family: 'Times New Roman', Times, serif;
+        }
+        .section-title {
+            background: none;
+            border: none;
+            border-bottom: 2px solid #333;
+            padding: 5px 0;
+            margin: 20px 0 15px 0;
+            color: #333;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        .paper-input {
+            border-bottom: 1px solid #ccc; /* Solid line for cleaner look */
+            font-family: 'Courier New', Courier, monospace; /* Monospace for data */
+            font-weight: 600;
+            color: #000;
+        }
+        .paper-watermark {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 80px; color: rgba(0, 0, 0, 0.04); z-index: 0; pointer-events: none;
+            font-weight: bold; border: 5px solid rgba(0, 0, 0, 0.04); padding: 10px 40px; border-radius: 10px;
+        }
+        .paper-footer {
+            position: absolute; bottom: 10mm; left: 15mm; right: 15mm;
+            text-align: center; font-size: 10px; color: #666;
+            border-top: 1px solid #eee; padding-top: 5px;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="btn-container">
+        <a href="#" onclick="window.close()" class="btn-back">Close Window</a>
+        <button onclick="window.print()" class="btn btn-print" style="background-color: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Print Profile</button>
+    </div>
+
+    <div class="paper-wrapper">
+        <form id="viewProfileForm">
+            <div class="paper-container">
+                <div class="paper-watermark">CONFIDENTIAL</div>
+                <div class="paper-header">
+                    <h1>SANJARANG PRIVATE LIMITED</h1>
+                    <h2>LOAN PROFILE VIEW</h2>
+                    <p>FORM - A <span id="vp-loan-ref" style="float: right; font-weight: bold; font-size: 14px; color: #c0392b;"></span></p>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Applicant Details</div>
+                    <div class="paper-row">
+                        <div class="paper-col-2">
+                            <div class="paper-row">
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Name of Applicant</span><input type="text" id="vp-borrower" class="paper-input" readonly></div></div>
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Date of Birth</span><input type="date" id="vp-dob" class="paper-input" readonly></div></div>
+                            </div>
+                            <div class="paper-row">
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Father / Husband Name</span><input type="text" id="vp-father" class="paper-input" readonly></div></div>
+                                <div class="paper-col"><div class="field-group"><span class="field-label">Guarantor Name</span><input type="text" id="vp-guarantor" class="paper-input" readonly></div></div>
+                            </div>
+                        </div>
+                        <div class="paper-col" style="flex: 0 0 130px;">
+                            <div class="photo-box" style="position: relative; overflow: hidden; background: #fff;">
+                                <span id="vp-photo-text" style="color:#ccc;">Photo</span>
+                                <img id="vp-photo" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Address & Contact</div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Village</span><input type="text" id="vp-village" class="paper-input" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">P.O.</span><input type="text" id="vp-po" class="paper-input" readonly></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">District</span><input type="text" id="vp-district" class="paper-input" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Pin No</span><input type="text" id="vp-pin" class="paper-input" readonly></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Mobile</span><input type="text" id="vp-mobile" class="paper-input" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">WhatsApp</span><input type="text" id="vp-whatsapp" class="paper-input" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Email</span><input type="email" id="vp-email" class="paper-input" readonly></div></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">KYC & Loan Details</div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Aadhaar Card No</span><input type="text" id="vp-aadhaar" class="paper-input" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">PAN Card No</span><input type="text" id="vp-pan" class="paper-input" readonly></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Loan Amount (₹)</span><input type="number" id="vp-amount" class="paper-input" step="0.01" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Interest Rate (%)</span><input type="number" id="vp-interest" class="paper-input" step="0.01" readonly></div></div>
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Tenure (Months)</span><input type="number" id="vp-tenure" class="paper-input" readonly></div></div>
+                    </div>
+                    <div class="paper-row">
+                        <div class="paper-col"><div class="field-group"><span class="field-label">Issue Date</span><input type="date" id="vp-dueDate" class="paper-input" readonly></div></div>
+                        <div class="paper-col-2"><div class="field-group"><span class="field-label">Purpose</span><input type="text" id="vp-purpose" class="paper-input" readonly></div></div>
+                    </div>
+                </div>
+
+                <div class="signature-section" style="display: flex; justify-content: space-between; margin-top: 60px; padding: 0 20px;">
+                    <div class="signature-box" style="text-align: center; width: 200px;">
+                        <div style="height:50px; display: flex; align-items: center; justify-content: center;">
+                            <img id="vp-sign-app" src="" style="max-height: 100%; max-width: 100%; display: none;">
+                        </div>
+                        <div class="signature-line" style="border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; font-weight: bold; font-size: 12px;">Applicant Signature</div>
+                    </div>
+                    <div class="signature-box" style="text-align: center; width: 200px;">
+                        <div style="height:50px; display: flex; align-items: center; justify-content: center;">
+                            <img id="vp-sign-guar" src="" style="max-height: 100%; max-width: 100%; display: none;">
+                        </div>
+                        <div class="signature-line" style="border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; font-weight: bold; font-size: 12px;">Guarantor Signature</div>
+                    </div>
+                </div>
+
+                <div class="paper-footer">
+                    Generated on <span id="print-date"></span> | Sanjarang Private Limited | Loan Management System
+                </div>
+            </div>
+        </form>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

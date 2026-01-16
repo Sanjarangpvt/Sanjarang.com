@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expenses - Loan Book</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+              <div class="sidebar-header">
+                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
+                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
+            </div>
+            <nav>
+                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
+                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
+                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
+                <a href="expenses.html" class="active"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
+                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
+                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
+                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
+                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
+                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="sidebar-collapse-btn" class="collapse-btn">
+                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
+                    <span class="link-text">Collapse Sidebar</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="custom-header-box">
+                <div class="header-container">
+                    <div class="header-left">
+                        <button id="sidebar-toggle" class="icon-btn">☰</button>
+                        <div class="header-title-group">
+                            <h1>Expenses</h1>
+                            <div class="user-profile">
+                                <span class="user-name">Admin</span>
+                                <span class="user-role">Administrator</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <div class="search-wrapper">
+                            <input type="text" id="global-search" placeholder="Search borrowers...">
+                            <div id="search-results" class="search-dropdown"></div>
+                        </div>
+                        <div id="current-datetime"></div>
+                    </div>
+                </div>
+            </header>
+            <main>
+                <section class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h2>Expense Management</h2>
+                            <p>Track and manage your operational expenses here.</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.9rem; color: #7f8c8d;">Total Expenses</div>
+                            <div id="total-expenses" style="font-size: 2rem; font-weight: bold; color: #e74c3c;">₹0.00</div>
+                        </div>
+                    </div>
+                    <button id="add-expense-btn" style="margin-top: 20px; padding: 10px 20px; background-color: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">+ Add Expense</button>
+                </section>
+
+                <section class="card">
+                    <h2>Daily Expenses List</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Date</th>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Description</th>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Category</th>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Status</th>
+                                <th style="text-align: right; padding: 10px; border-bottom: 1px solid #eee;">Amount</th>
+                                <th style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expense-table-body"></tbody>
+                    </table>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add Expense Modal -->
+    <div id="expense-modal" class="custom-modal">
+        <div class="custom-modal-content" style="max-width: 400px;">
+            <span class="custom-close-modal" id="close-expense-modal">&times;</span>
+            <h2>Add New Expense</h2>
+            <form id="expense-form">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Date</label>
+                    <input type="date" id="exp-date" required style="width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
+                    <input type="text" id="exp-desc" placeholder="e.g. Office Rent" required style="width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Category</label>
+                    <select id="exp-category" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="Office">Office</option>
+                        <option value="Salary">Salary</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Amount</label>
+                    <input type="number" id="exp-amount" required step="0.01" style="width: 100%;">
+                </div>
+                <button type="submit" style="width: 100%; margin-top: 10px; background-color: #e74c3c;">Save Expense</button>
+            </form>
+        </div>
+    </div>
+    <script src="app.js" defer></script>
+    <script src="expenses.js" defer></script>
+</body>
+</html>
