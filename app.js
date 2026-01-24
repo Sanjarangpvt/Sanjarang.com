@@ -2291,17 +2291,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const tenure = parseInt(document.getElementById('calc-tenure').value) || 0;
 
             if (amount > 0 && tenure > 0) {
-                // OPTION 1: Flat Rate (Current App Logic)
-                // const emi = (amount / tenure) + (amount * (interest / 100));
-
-                // OPTION 2: Standard Reducing Balance EMI
-                // Assuming 'interest' input is Monthly Interest Rate %
-                const r = interest / 100;
-                // Formula: E = P * r * (1+r)^n / ((1+r)^n - 1)
-                const emi = (amount * r * Math.pow(1 + r, tenure)) / (Math.pow(1 + r, tenure) - 1);
-
-                const totalPayment = emi * tenure;
-                const totalInterest = totalPayment - amount;
+                // Simple Interest Calculation (Monthly)
+                // Interest is calculated monthly: totalInterest = principal * (rate/100) * tenure
+                const totalInterest = amount * (interest / 100) * tenure;
+                const totalPayment = amount + totalInterest;
+                const emi = totalPayment / tenure;
 
                 document.getElementById('res-emi').textContent = '₹' + emi.toFixed(2);
                 document.getElementById('res-interest').textContent = '₹' + totalInterest.toFixed(2);
