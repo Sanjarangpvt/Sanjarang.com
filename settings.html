@@ -12,28 +12,8 @@
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
-        <aside class="sidebar">
-             <div class="sidebar-header">
-                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
-                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
-            </div>
-            <nav>
-                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
-                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
-                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
-                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
-                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
-                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
-                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
-                <a href="settings.html" class="active"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
-                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="sidebar-collapse-btn" class="collapse-btn">
-                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
-                    <span class="link-text">Collapse Sidebar</span>
-                </button>
-            </div>
+        <aside class="sidebar collapsed">
+            
         </aside>
 
         <!-- Main Content -->
@@ -50,14 +30,22 @@
                             </div>
                         </div>
                     </div>
+                    <div class="header-right">
+                        <div class="quick-actions-wrapper" style="position: relative; margin-right: 15px;">
+                            <button id="quick-actions-btn" class="icon-btn" title="Quick Actions">⚡</button>
+                            <div id="quick-actions-dropdown" class="dropdown-content">
+                                <div class="dropdown-header">Quick Actions</div>
+                                <ul class="quick-actions-list">
+                                    <li><a href="add-loan.html" target="_blank">Add New Loan</a></li>
+                                    <li><a href="loan-calculator.html">EMI Calculator</a></li>
+                                    <li><a href="wallet.html">Wallet / Funds</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </header>
             <main>
-                <section class="card">
-                    <h2>Demo Content</h2>
-                    <p>Populate your database with sample borrowers and loans to test the dashboard.</p>
-                    <button id="loadDemoBtn" style="background-color: #3498db; margin-top: 10px;">Load Demo Data</button>
-                </section>
                 <section class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 2px solid #f0f2f5; padding-bottom: 0.5rem; margin-bottom: 1rem;">
                         <h2 style="margin: 0; border: none; padding: 0;">Admin Profile Settings</h2>
@@ -67,19 +55,19 @@
                         <p>Update your login credentials and contact info.</p>
                         <form id="adminProfileForm">
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">User ID (Username)</label>
+                            <label for="profile-username" style="width:100%; font-weight:bold; margin-bottom:5px;">User ID (Username)</label>
                             <input type="text" id="profile-username" required>
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Gmail ID (Email)</label>
+                            <label for="profile-email" style="width:100%; font-weight:bold; margin-bottom:5px;">Gmail ID (Email)</label>
                             <input type="email" id="profile-email" placeholder="admin@example.com">
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">New Password</label>
+                            <label for="profile-password" style="width:100%; font-weight:bold; margin-bottom:5px;">New Password</label>
                             <input type="password" id="profile-password" placeholder="Leave blank to keep current">
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Role</label>
+                            <label for="profile-role" style="width:100%; font-weight:bold; margin-bottom:5px;">Role</label>
                             <select id="profile-role" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                                 <option value="Administrator">Administrator</option>
                                 <option value="Staff">Staff</option>
@@ -103,15 +91,15 @@
                         <p>Create and manage administrator accounts for system access.</p>
                     <form id="createAdminForm" style="margin-bottom: 20px;">
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Username</label>
+                            <label for="admin-username" style="width:100%; font-weight:bold; margin-bottom:5px;">Username</label>
                             <input type="text" id="admin-username" placeholder="Enter Username" required>
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Password</label>
+                            <label for="admin-password" style="width:100%; font-weight:bold; margin-bottom:5px;">Password</label>
                             <input type="password" id="admin-password" placeholder="Enter Password" required>
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Role</label>
+                            <label for="admin-role" style="width:100%; font-weight:bold; margin-bottom:5px;">Role</label>
                             <select id="admin-role" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                                 <option value="Administrator">Administrator</option>
                                 <option value="Staff">Staff</option>
@@ -130,7 +118,7 @@
                     <div id="theme-content" style="display: none;">
                         <p>Personalize the application appearance.</p>
                         <div class="form-group">
-                            <label>Color Theme</label>
+                            <div style="font-weight: bold; margin-bottom: 5px;">Color Theme</div>
                             <div style="display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap;">
                                 <button class="theme-btn" data-theme="light" style="padding: 8px 15px; border: 1px solid #ddd; background: #f0f2f5; color: #333; cursor: pointer; border-radius: 4px; font-weight: bold;">Light</button>
                                 <button class="theme-btn" data-theme="dark" style="padding: 8px 15px; border: 1px solid #333; background: #2c3e50; color: white; cursor: pointer; border-radius: 4px; font-weight: bold;">Dark</button>
@@ -140,19 +128,19 @@
                             </div>
                         </div>
                         <div class="form-group" style="margin-top: 15px;">
-                            <label>Customize Background (Upload Image)</label>
+                            <label for="bg-upload">Customize Background (Upload Image)</label>
                             <input type="file" id="bg-upload" accept="image/*">
                             <button id="upload-bg-btn" style="margin-top: 10px; background-color: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Upload</button>
                             <div style="margin-top: 10px; width: 100%;">
-                                <label style="font-weight: normal; font-size: 0.9rem;">Background Opacity: <span id="opacity-val">100%</span></label>
+                                <label for="bg-opacity" style="font-weight: normal; font-size: 0.9rem;">Background Opacity: <span id="opacity-val">100%</span></label>
                                 <input type="range" id="bg-opacity" min="0.1" max="1" step="0.1" value="1" style="width: 100%; cursor: pointer;">
                             </div>
                             <div style="margin-top: 10px; width: 100%;">
-                                <label style="font-weight: normal; font-size: 0.9rem;">Background Blur: <span id="blur-val">0px</span></label>
+                                <label for="bg-blur" style="font-weight: normal; font-size: 0.9rem;">Background Blur: <span id="blur-val">0px</span></label>
                                 <input type="range" id="bg-blur" min="0" max="20" step="1" value="0" style="width: 100%; cursor: pointer;">
                             </div>
                             <div style="margin-top: 10px; width: 100%;">
-                                <label style="font-weight: normal; font-size: 0.9rem;">Theme Transparency: <span id="transparency-val">65%</span></label>
+                                <label for="theme-transparency" style="font-weight: normal; font-size: 0.9rem;">Theme Transparency: <span id="transparency-val">65%</span></label>
                                 <input type="range" id="theme-transparency" min="0.1" max="1" step="0.05" value="0.65" style="width: 100%; cursor: pointer;">
                             </div>
                             <button id="clear-bg-btn" style="margin-top: 10px; background-color: #e74c3c; display: none;">Remove Background Image</button>
@@ -162,9 +150,11 @@
                 </section>
                 <section class="card">
                     <h2>Cloud Sync</h2>
-                    <p>Migrate your local data to Firebase Cloud Firestore.</p>
+                    <p>Sync your local data with Firebase Cloud Firestore.</p>
                     <div style="margin-top: 15px;">
-                        <button id="migrateBtn" style="background-color: #8e44ad; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Migrate to Firestore</button>
+                        <button id="syncBtn" style="background-color: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 10px;">Sync Now</button>
+                        <button id="migrateBtn" style="background-color: #8e44ad; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Initial Migration</button>
+                        <p id="syncStatus" style="margin-top: 10px; font-weight: bold; font-size: 0.9rem;"></p>
                         <p id="migrationStatus" style="margin-top: 10px; font-weight: bold; font-size: 0.9rem;"></p>
                     </div>
                 </section>

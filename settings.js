@@ -167,6 +167,137 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --- MANUAL SYNC LOGIC ---
+    const syncBtn = document.getElementById('syncBtn');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            if (!confirm('This will sync your local data with Firestore. Continue?')) return;
+
+            const status = document.getElementById('syncStatus');
+            syncBtn.disabled = true;
+            syncBtn.textContent = 'Syncing...';
+            if (status) {
+                status.textContent = 'Preparing data...';
+                status.style.color = '#3498db';
+            }
+
+            try {
+                // Use the global manualSync function from app.js
+                if (typeof window.manualSync === 'function') {
+                    await window.manualSync();
+                    if (status) {
+                        status.textContent = 'Sync completed successfully!';
+                        status.style.color = '#27ae60';
+                    }
+                } else {
+                    // Fallback: implement sync here
+                    const { app } = await import('./firebase-config.js');
+                    const { getFirestore, doc, writeBatch } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                    
+                    const db = getFirestore(app);
+                    
+                    // Read Data
+                    const loans = JSON.parse(localStorage.getItem('loans')) || [];
+                    const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                    const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+                    const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
+                    const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+                    const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+
+                    if (loans.length === 0 && employees.length === 0 && expenses.length === 0 && walletTransactions.length === 0) {
+                        if (status) {
+                            status.textContent = 'No local data to sync';
+                            status.style.color = '#7f8c8d';
+                        }
+                        return;
+                    }
+
+                    // Prepare Batches
+                    const batchSize = 450; 
+                    let batches = [];
+                    let currentBatch = writeBatch(db);
+                    let operationCount = 0;
+
+                    // Helper to sanitize data
+                    const sanitize = (obj) => JSON.parse(JSON.stringify(obj));
+
+                    const addToBatch = (ref, data) => {
+                        currentBatch.set(ref, data);
+                        operationCount++;
+                        if (operationCount >= batchSize) {
+                            batches.push(currentBatch);
+                            currentBatch = writeBatch(db);
+                            operationCount = 0;
+                        }
+                    };
+
+                    // Queue Operations
+                    loans.forEach((loan, index) => {
+                        const loanId = loan.id || `loan_${Date.now()}_${index}`;
+                        const loanRef = doc(db, "loans", loanId); 
+                        addToBatch(loanRef, sanitize(loan));
+                    });
+
+                    employees.forEach((emp, index) => {
+                        const empId = emp.id || `emp_${Date.now()}_${index}`;
+                        const empRef = doc(db, "employees", empId);
+                        addToBatch(empRef, sanitize(emp));
+                    });
+
+                    expenses.forEach((exp, index) => {
+                        const expId = exp.id || `exp_${Date.now()}_${index}`;
+                        const expRef = doc(db, "expenses", expId);
+                        addToBatch(expRef, sanitize(exp));
+                    });
+
+                    walletTransactions.forEach((trans, index) => {
+                        const transId = trans.id || `trans_${Date.now()}_${index}`;
+                        const transRef = doc(db, "wallet_transactions", transId);
+                        addToBatch(transRef, sanitize(trans));
+                    });
+
+                    admins.forEach((admin, index) => {
+                        const adminRef = doc(db, "admin_users", admin.username);
+                        addToBatch(adminRef, sanitize(admin));
+                    });
+
+                    const profileRef = doc(db, "settings", "companyProfile");
+                    addToBatch(profileRef, sanitize(profile));
+
+                    if (operationCount > 0) batches.push(currentBatch);
+
+                    // Commit with timeout
+                    if (status) status.textContent = `Syncing ${batches.length} batches...`;
+                    
+                    const commitPromises = batches.map(batch => batch.commit());
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error("Sync timeout")), 30000)
+                    );
+
+                    await Promise.race([
+                        Promise.all(commitPromises),
+                        timeoutPromise
+                    ]);
+
+                    if (status) {
+                        status.textContent = 'Sync completed successfully!';
+                        status.style.color = '#27ae60';
+                    }
+                }
+
+            } catch (error) {
+                console.error("Sync failed: ", error);
+                if (status) {
+                    status.textContent = 'Sync failed: ' + error.message;
+                    status.style.color = '#e74c3c';
+                }
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync Now';
+            }
+        });
+    }
     
     // --- BACKUP DATA LOGIC ---
     const backupBtn = document.getElementById('backupDataBtn');

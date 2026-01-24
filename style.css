@@ -11,27 +11,35 @@ body {
 .custom-header-box {
     width: 100%;
     padding: 20px 0;
+    padding: 0;
     display: flex;
     justify-content: center;
     background-color: transparent; /* Ensure it blends with main content bg */
     position: relative;
+    position: sticky;
+    top: 0;
     z-index: 100;
 }
 
 /* Main Rounded Box Design */
 .header-container {
-    width: 90%;
-    max-width: 1200px;
-    height: 80px;
+    width: 100%;
+    max-width: 98%;
+    max-width: 100%;
+    gap: 20px;
+    height: 100px;
+    height: 70px;
     
     /* Background Gradient: Blue to Purple */
     background: linear-gradient(135deg, #4facfe 0%, #a467f7 100%);
     
     /* Round Corners */
     border-radius: 20px; 
+    border-radius: 0; 
     
     /* Premium Shadow Effect */
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.20);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     
     /* Inner Alignment */
     display: flex;
@@ -39,6 +47,8 @@ body {
     padding: 0 30px;
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
 }
 
@@ -46,6 +56,9 @@ body {
     transform: translateY(-3px);
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
     filter: brightness(1.02);
+    transform: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    filter: none;
 }
 
 /* Typography & Elements inside Header */
@@ -211,6 +224,25 @@ body {
     margin-bottom: 2px;
 }
 
+/* Quick Actions Styles */
+.quick-actions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.quick-actions-list li a {
+    display: block;
+    padding: 10px 15px;
+    text-decoration: none;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    transition: background 0.2s;
+}
+.quick-actions-list li a:hover {
+    background-color: #f8f9fa;
+    color: #27ae60;
+}
+
 /* Search Bar Styles */
 .search-wrapper {
     position: relative;
@@ -281,9 +313,10 @@ header nav a:hover, header nav a.active {
 }
 
 main {
-    max-width: 96%;
-    margin: 2rem auto;
-    padding: 0 2rem;
+    width: 100%;
+    max-width: 97%;
+    margin: 0;
+    padding: 30px;
 }
 
 .card {
@@ -359,6 +392,10 @@ th {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 24px;
+    width: 100%;
+}
+
+.dashboard-card {
     margin-bottom: 2rem;
 }
 
