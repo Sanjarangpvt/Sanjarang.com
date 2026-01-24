@@ -53,6 +53,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         initFirestore();
 
+        // Listen for loan updates (from app.js) to keep wallet in sync
+        document.addEventListener('loans-updated', () => {
+            loans = JSON.parse(localStorage.getItem('loans')) || [];
+            renderWallet();
+        });
+
         let currentPage = 1;
         const rowsPerPage = 15;
 
@@ -143,7 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // Sort by date descending
-            return allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+            return allTransactions.sort((a, b) => {
+                const dateA = a.date ? new Date(a.date) : new Date(0);
+                const dateB = b.date ? new Date(b.date) : new Date(0);
+                return dateB - dateA;
+            });
         };
 
         const renderChart = (transactions) => {

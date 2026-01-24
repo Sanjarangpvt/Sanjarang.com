@@ -28,28 +28,8 @@
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
-       <aside class="sidebar">
-             <div class="sidebar-header">
-                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
-                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
-            </div>
-            <nav>
-                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
-                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
-                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
-                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
-                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
-                <a href="forms.html" class="active"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
-                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
-                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
-                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="sidebar-collapse-btn" class="collapse-btn">
-                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
-                    <span class="link-text">Collapse Sidebar</span>
-                </button>
-            </div>
+       <aside class="sidebar collapsed">
+             
         </aside>
 
         <!-- Main Content -->
@@ -63,6 +43,19 @@
                             <div class="user-profile">
                                 <span class="user-name">Admin</span>
                                 <span class="user-role">Administrator</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <div class="quick-actions-wrapper" style="position: relative; margin-right: 15px;">
+                            <button id="quick-actions-btn" class="icon-btn" title="Quick Actions">⚡</button>
+                            <div id="quick-actions-dropdown" class="dropdown-content">
+                                <div class="dropdown-header">Quick Actions</div>
+                                <ul class="quick-actions-list">
+                                    <li><a href="add-loan.html" target="_blank">Add New Loan</a></li>
+                                    <li><a href="loan-calculator.html">EMI Calculator</a></li>
+                                    <li><a href="wallet.html">Wallet / Funds</a></li>
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -135,12 +128,12 @@
                 <div class="paper-row">
                     <div class="paper-col-2">
                         <div class="paper-row">
-                            <div class="paper-col"><div class="field-group"><span class="field-label">Name of Applicant</span><input type="text" class="paper-input"></div></div>
-                            <div class="paper-col"><div class="field-group"><span class="field-label">Date of Birth</span><input type="text" class="paper-input"></div></div>
+                            <div class="paper-col"><div class="field-group"><label for="applicant-name" class="field-label">Name of Applicant</label><input type="text" id="applicant-name" autocomplete="name" class="paper-input"></div></div>
+                            <div class="paper-col"><div class="field-group"><label for="dob" class="field-label">Date of Birth</label><input type="text" id="dob" autocomplete="off" class="paper-input"></div></div>
                         </div>
                         <div class="paper-row">
-                            <div class="paper-col"><div class="field-group"><span class="field-label">Father / Husband Name</span><input type="text" class="paper-input"></div></div>
-                            <div class="paper-col"><div class="field-group"><span class="field-label">Guarantor Name</span><input type="text" class="paper-input"></div></div>
+                            <div class="paper-col"><div class="field-group"><label for="father-name" class="field-label">Father / Husband Name</label><input type="text" id="father-name" autocomplete="name" class="paper-input"></div></div>
+                            <div class="paper-col"><div class="field-group"><label for="guarantor-name" class="field-label">Guarantor Name</label><input type="text" id="guarantor-name" autocomplete="name" class="paper-input"></div></div>
                         </div>
                     </div>
                     <div class="paper-col" style="flex: 0 0 130px;">
@@ -152,34 +145,34 @@
             <div class="form-section">
                 <div class="section-title">Address & Contact</div>
                 <div class="paper-row">
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Village</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">P.O.</span><input type="text" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="village" class="field-label">Village</label><input type="text" id="village" autocomplete="address-line1" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="po" class="field-label">P.O.</label><input type="text" id="po" autocomplete="address-line2" class="paper-input"></div></div>
                 </div>
                 <div class="paper-row">
-                    <div class="paper-col"><div class="field-group"><span class="field-label">District</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Pin No</span><input type="text" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="district" class="field-label">District</label><input type="text" id="district" autocomplete="address-level2" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="pin" class="field-label">Pin No</label><input type="text" id="pin" autocomplete="postal-code" class="paper-input"></div></div>
                 </div>
                 <div class="paper-row">
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Mobile</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">WhatsApp</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Email</span><input type="text" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="mobile" class="field-label">Mobile</label><input type="text" id="mobile" autocomplete="tel" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="whatsapp" class="field-label">WhatsApp</label><input type="text" id="whatsapp" autocomplete="tel" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="email" class="field-label">Email</label><input type="text" id="email" autocomplete="email" class="paper-input"></div></div>
                 </div>
             </div>
 
             <div class="form-section">
                 <div class="section-title">KYC & Loan Details</div>
                 <div class="paper-row">
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Aadhaar Card No</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">PAN Card No</span><input type="text" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="aadhaar" class="field-label">Aadhaar Card No</label><input type="text" id="aadhaar" autocomplete="off" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="pan" class="field-label">PAN Card No</label><input type="text" id="pan" autocomplete="off" class="paper-input"></div></div>
                 </div>
                 <div class="paper-row">
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Loan Amount (₹)</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Interest Rate (%)</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Tenure (Months)</span><input type="text" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="loan-amount" class="field-label">Loan Amount (₹)</label><input type="text" id="loan-amount" autocomplete="off" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="interest-rate" class="field-label">Interest Rate (%)</label><input type="text" id="interest-rate" autocomplete="off" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="tenure" class="field-label">Tenure (Months)</label><input type="text" id="tenure" autocomplete="off" class="paper-input"></div></div>
                 </div>
                 <div class="paper-row">
-                    <div class="paper-col"><div class="field-group"><span class="field-label">Issue Date</span><input type="text" class="paper-input"></div></div>
-                    <div class="paper-col-2"><div class="field-group"><span class="field-label">Purpose</span><input type="text" class="paper-input"></div></div>
+                    <div class="paper-col"><div class="field-group"><label for="issue-date" class="field-label">Issue Date</label><input type="text" id="issue-date" autocomplete="off" class="paper-input"></div></div>
+                    <div class="paper-col-2"><div class="field-group"><label for="purpose" class="field-label">Purpose</label><input type="text" id="purpose" autocomplete="off" class="paper-input"></div></div>
                 </div>
             </div>
 
@@ -229,15 +222,15 @@
             <h2>Upload Custom Form</h2>
             <form id="uploadForm">
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Form Name</label>
-                    <input type="text" id="custom-form-name" placeholder="e.g. KYC Update Form" required style="width: 100%;">
+                    <label for="custom-form-name" style="display:block; margin-bottom:5px; font-weight:bold;">Form Name</label>
+                    <input type="text" id="custom-form-name" autocomplete="off" placeholder="e.g. KYC Update Form" required style="width: 100%;">
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
-                    <input type="text" id="custom-form-desc" placeholder="Short description..." required style="width: 100%;">
+                    <label for="custom-form-desc" style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
+                    <input type="text" id="custom-form-desc" autocomplete="off" placeholder="Short description..." required style="width: 100%;">
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Select PDF</label>
+                    <label for="custom-form-file" style="display:block; margin-bottom:5px; font-weight:bold;">Select PDF</label>
                     <input type="file" id="custom-form-file" accept="application/pdf" required style="width: 100%;">
                 </div>
                 <button type="submit" style="width: 100%; margin-top: 10px;">Upload</button>

@@ -8,32 +8,85 @@
     <link rel="stylesheet" href="sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        /* Beautiful Search Bar Styles */
+        .modern-search-container {
+            display: flex;
+            gap: 100px;
+            margin-bottom: 25px;
+            align-items: center;
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+        .search-box-wrapper {
+            flex-grow: 1;
+            position: relative;
+        }
+        .modern-search-input {
+            width: 100%;
+            padding: 14px 20px 14px 50px; /* Space for icon */
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            outline: none;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background-color: #f8f9fa;
+            color: #2c3e50;
+        }
+        .modern-search-input:focus {
+            border-color: #3498db;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+        }
+        .search-icon-custom {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #95a5a6;
+            font-size: 1.2rem;
+            pointer-events: none;
+            transition: color 0.3s ease;
+        }
+        .modern-search-input:focus + .search-icon-custom {
+            color: #3498db;
+        }
+        .modern-filter-select {
+            padding: 14px 25px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            outline: none;
+            cursor: pointer;
+            background-color: white;
+            font-weight: 600;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+            min-width: 180px;
+            appearance: none; /* Remove default arrow */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233498db' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 15px center;
+            background-size: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .modern-filter-select:hover, .modern-filter-select:focus {
+            border-color: #3498db;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.1);
+        }
+    </style>
 </head>
+
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
-        <aside class="sidebar">
-             <div class="sidebar-header">
-                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
-                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
-            </div>
-            <nav>
-                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
-                <a href="manage-loans.html" class="active"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
-                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
-                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
-                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
-                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
-                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
-                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
-                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="sidebar-collapse-btn" class="collapse-btn">
-                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
-                    <span class="link-text">Collapse Sidebar</span>
-                </button>
-            </div>
+        <aside class="sidebar collapsed">
+            
         </aside>
 
         <!-- Main Content -->
@@ -41,7 +94,6 @@
             <header class="custom-header-box">
                 <div class="header-container">
                     <div class="header-left">
-                        <button id="sidebar-toggle" class="icon-btn">☰</button>
                         <div class="header-title-group">
                             <h1>Manage Loans</h1>
                             <div class="user-profile">
@@ -55,58 +107,100 @@
                             <input type="text" id="global-search" placeholder="Search borrowers...">
                             <div id="search-results" class="search-dropdown"></div>
                         </div>
+                        <div class="quick-actions-wrapper" style="position: relative; margin-right: 15px;">
+                            <button id="quick-actions-btn" class="icon-btn" title="Quick Actions">⚡</button>
+                            <div id="quick-actions-dropdown" class="dropdown-content">
+                                <div class="dropdown-header">Quick Actions</div>
+                                <ul class="quick-actions-list">
+                                    <li><a href="add-loan.html" target="_blank">Add New Loan</a></li>
+                                    <li><a href="loan-calculator.html">EMI Calculator</a></li>
+                                    <li><a href="wallet.html">Wallet / Funds</a></li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </header>
 
             <main>
-        <!-- Stats Grid for Manage Loans -->
-        <section class="dashboard-grid">
-            <div class="card stat-card manage-card card-orange">
-                <div class="stat-icon">👥</div>
-                <div class="stat-details">
-                    <h3>Total Borrowers</h3>
-                    <p class="stat-number" id="ml-total-borrowers">0</p>
-                    <a href="borrowers-list.html" class="stat-btn">View All</a>
+                <!-- Search and Filter Section -->
+                <div class="modern-search-container">
+                    <div class="search-box-wrapper">
+                        <input type="text" id="loan-search-input" class="modern-search-input" placeholder="Search by Name, Ref No, or Mobile...">
+                        <i class="bi bi-search search-icon-custom"></i>
+                    </div>
+                    <select id="loan-filter-select" class="modern-filter-select">
+                        <option value="all">All Loans</option>
+                        <option value="active">Active</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="closed">Closed</option>
+                    </select>
                 </div>
-            </div>
-            <div class="card stat-card manage-card card-blue">
-                <div class="stat-icon">📄</div>
-                <div class="stat-details">
-                    <h3>Active Loans</h3>
-                    <p class="stat-number" id="ml-active-loans">0</p>
-                    <a href="active-loans.html" class="stat-btn">View List</a>
-                </div>
-            </div>
-            <div class="card stat-card manage-card card-red">
-                <div class="stat-icon">⚠️</div>
-                <div class="stat-details">
-                    <h3>Overdue</h3>
-                    <p class="stat-number" id="ml-overdue">0</p>
-                    <a href="overdue-loans.html" class="stat-btn">View Details</a>
-                </div>
-            </div>
-            <div class="card stat-card manage-card card-purple">
-                <div class="stat-icon">🔒</div>
-                <div class="stat-details">
-                    <h3>Closed Loans</h3>
-                    <p class="stat-number" id="ml-closed-loans">0</p>
-                    <a href="closed-loans.html" class="stat-btn">View Archive</a>
-                </div>
-            </div>
-            <a href="add-loan.html" target="_blank" class="card stat-card manage-card card-green" id="add-loan-card" style="cursor: pointer; text-decoration: none; color: inherit;">
-                <div class="stat-icon">➕</div>
-                <div class="stat-details">
-                    <h3>Quick Action</h3>
-                    <p class="stat-number" style="font-size: 1.5rem;">Add New Loan</p>
-                    <span class="stat-btn">Start Now</span>
-                </div>
-            </a>
-        </section>
 
+                <!-- Action Buttons (Formerly Cards) -->
+                <div class="action-buttons-container" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <button class="filter-btn-card" data-filter="all" style="flex: 1; padding: 15px; border: none; border-radius: 8px; background: #f39c12; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <i class="bi bi-people-fill"></i> Total Borrowers
+                    </button>
+                    <button class="filter-btn-card" data-filter="active" style="flex: 1; padding: 15px; border: none; border-radius: 8px; background: #3498db; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <i class="bi bi-file-earmark-text-fill"></i> Active Loans
+                    </button>
+                    <button class="filter-btn-card" data-filter="overdue" style="flex: 1; padding: 15px; border: none; border-radius: 8px; background: #e74c3c; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Overdue
+                    </button>
+                    <button class="filter-btn-card" data-filter="closed" style="flex: 1; padding: 15px; border: none; border-radius: 8px; background: #8e44ad; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <i class="bi bi-lock-fill"></i> Closed Loans
+                    </button>
+                    <button onclick="window.open('add-loan.html', '_blank')" style="flex: 1; padding: 15px; border: none; border-radius: 8px; background: #27ae60; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <i class="bi bi-plus-circle-fill"></i> Add New Loan
+                    </button>
+                </div>
+
+                <!-- Borrowers Table -->
+                <section class="card" style="padding: 0; overflow: hidden;">
+                    <div style="overflow-x: auto;">
+                        <table id="manage-loans-table" style="width: 100%; border-collapse: collapse;">
+                            <thead style="background-color: #f8f9fa; border-bottom: 2px solid #eee;">
+                                <tr>
+                                    <th style="padding: 15px; text-align: left; color: #555;">Ref No</th>
+                                    <th style="padding: 15px; text-align: left; color: #555;">Name</th>
+                                    <th style="padding: 15px; text-align: left; color: #555;">Mobile</th>
+                                    <th style="padding: 15px; text-align: left; color: #555;">Disbursement Date</th>
+                                    <th style="padding: 15px; text-align: right; color: #555;">Loan Amount</th>
+                                    <th style="padding: 15px; text-align: left; color: #555;">Next Due Date</th>
+                                    <th style="padding: 15px; text-align: center; color: #555;">Status</th>
+                                    <th style="padding: 15px; text-align: center; color: #555;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manage-loans-tbody">
+                                <!-- Rows will be populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </main>
         </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirmation-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);">
+        <div style="background-color: #fff; margin: 15% auto; padding: 30px; border: none; width: 350px; border-radius: 12px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: fadeIn 0.3s;">
+            <div style="margin-bottom: 20px; background: #fde8e8; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: auto; margin-right: auto;">
+                <i class="bi bi-trash-fill" style="font-size: 2.5rem; color: #e74c3c;"></i>
+            </div>
+            <h3 style="margin-top: 0; color: #2c3e50; font-size: 1.5rem; margin-bottom: 10px;">Delete Loan?</h3>
+            <p style="color: #7f8c8d; font-size: 0.95rem; margin-bottom: 25px; line-height: 1.5;">Are you sure you want to delete this loan record? This action cannot be undone.</p>
+            <div style="display: flex; justify-content: center; gap: 15px;">
+                <button id="cancel-delete-btn" style="padding: 10px 24px; border: 1px solid #e2e8f0; background: white; color: #555; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">Cancel</button>
+                <button id="confirm-delete-btn" style="padding: 10px 24px; border: none; background: #e74c3c; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 6px rgba(231, 76, 60, 0.2); transition: all 0.2s;">Delete</button>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+
     <script src="app.js" defer></script>
+    <script src="manage-loans.js" defer></script>
 </body>
 </html>

@@ -1,4 +1,113 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- DYNAMIC SIDEBAR LOADER ---
+    // --- HELPER: UPDATE SIDEBAR PROFILE ---
+    // Defined here so it is available for loadSidebar and Firestore listeners
+    const updateSidebarProfile = () => {
+        const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+        const sidebarLogo = document.getElementById('sidebar-logo');
+        const sidebarCompanyName = document.getElementById('sidebar-company-name');
+        
+        if (savedProfile.name && sidebarCompanyName) {
+            sidebarCompanyName.textContent = savedProfile.name;
+        }
+        if (savedProfile.logo && sidebarLogo) {
+            sidebarLogo.src = savedProfile.logo;
+            sidebarLogo.style.display = 'block';
+        }
+    };
+
+    // --- DYNAMIC SIDEBAR LOADER (WITH CACHING) ---
+    const loadSidebar = async () => {
+        const sidebar = document.querySelector('.sidebar');
+        const headerLeft = document.querySelector('.header-left');
+        const CACHE_KEY = 'sidebar_html_cache';
+
+        if (sidebar) {
+            // 1. Load HTML
+            // Helper to setup sidebar events/state after HTML injection
+            const initSidebar = () => {
+                // Highlight Active Link
+                const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+                sidebar.querySelectorAll('nav a').forEach(link => {
+                    link.classList.remove('active'); // Clear cached active state
+                    if (link.getAttribute('href') === currentPath) link.classList.add('active');
+                });
+
+                // Adjust Dashboard Link for Non-Admins (Employees)
+                const userRole = localStorage.getItem('userRole');
+                if (userRole !== 'Administrator') {
+                    const dashboardLink = sidebar.querySelector('a[href="dashboard.html"]');
+                    if (dashboardLink) dashboardLink.setAttribute('href', 'Employee-dashboard.html');
+                }
+
+                // Update Profile Info
+                updateSidebarProfile();
+
+                // Setup Logout
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) {
+                    // Clone to remove old listeners if any
+                    const newBtn = logoutBtn.cloneNode(true);
+                    logoutBtn.parentNode.replaceChild(newBtn, logoutBtn);
+                    newBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (confirm('Are you sure you want to logout?')) {
+                            localStorage.removeItem('isLoggedIn');
+                            localStorage.removeItem('currentUser');
+                            window.location.href = 'login.html';
+                        }
+                    });
+                }
+            };
+
+            // 1. Load from Cache Immediately (Fixes Flickering)
+            const cachedHTML = localStorage.getItem(CACHE_KEY);
+            if (cachedHTML) {
+                sidebar.innerHTML = cachedHTML;
+                initSidebar();
+            }
+
+            // 2. Fetch Fresh Content in Background
+            try {
+                const response = await fetch('sidebar.html');
+                if (response.ok) {
+                    const html = await response.text();
+                    // Only update DOM if content changed
+                    if (html !== cachedHTML) {
+                        sidebar.innerHTML = html;
+                        localStorage.setItem(CACHE_KEY, html);
+                        initSidebar();
+                    }
+                }
+            } catch (e) { console.error("Sidebar fetch error", e); }
+
+            // 3. Setup Sidebar State & Toggle
+            const savedState = localStorage.getItem('sidebarState');
+            if (savedState === 'expanded') {
+                sidebar.classList.remove('collapsed');
+            } else {
+                sidebar.classList.add('collapsed');
+            }
+
+            // Remove legacy static button if present to avoid duplicates
+            const staticBtn = document.getElementById('sidebar-toggle');
+            if (staticBtn) staticBtn.remove();
+
+            if (headerLeft && !document.getElementById('main-sidebar-toggle')) {
+                const headerToggleBtn = document.createElement('button');
+                headerToggleBtn.id = 'main-sidebar-toggle';
+                headerToggleBtn.className = 'icon-btn';
+                headerToggleBtn.innerHTML = '<i class="bi bi-list" style="font-size: 1.5rem;"></i>';
+                headerLeft.prepend(headerToggleBtn);
+                headerToggleBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('collapsed');
+                    localStorage.setItem('sidebarState', sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded');
+                });
+            }
+        }
+    };
+    loadSidebar();
+
     // --- WELCOME TOAST LOGIC ---
     if (localStorage.getItem('showWelcomeToast') === 'true') {
         const user = localStorage.getItem('currentUser') || 'User';
@@ -138,6 +247,170 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     initFirestore();
 
+    // --- SYNC STATUS MANAGEMENT ---
+    let syncStatus = 'synced'; // 'synced', 'syncing', 'offline', 'error'
+    
+    const updateSyncStatus = (status, message = '') => {
+        syncStatus = status;
+        const syncElement = document.getElementById('sync-status');
+        if (syncElement) {
+            syncElement.innerHTML = getSyncStatusHTML(status, message);
+        }
+        console.log(`Sync status: ${status}${message ? ' - ' + message : ''}`);
+    };
+
+    const getSyncStatusHTML = (status, message) => {
+        const icons = {
+            synced: '<i class="bi bi-cloud-check"></i>',
+            syncing: '<i class="bi bi-cloud-upload"></i>',
+            offline: '<i class="bi bi-cloud-slash"></i>',
+            error: '<i class="bi bi-cloud-exclamation"></i>'
+        };
+        
+        const texts = {
+            synced: 'Synced',
+            syncing: 'Syncing...',
+            offline: 'Offline',
+            error: 'Sync Error'
+        };
+
+        const colors = {
+            synced: '#27ae60',
+            syncing: '#f39c12',
+            offline: '#7f8c8d',
+            error: '#e74c3c'
+        };
+
+        return `<span style="color: ${colors[status]}">${icons[status]} ${texts[status]}${message ? ': ' + message : ''}</span>`;
+    };
+
+    // Initialize sync status
+    updateSyncStatus('synced');
+
+    // Global sync function for manual sync
+    window.manualSync = async () => {
+        if (syncStatus === 'syncing') return;
+        
+        updateSyncStatus('syncing');
+        try {
+            // Import sync function from login.js or recreate it
+            const { app } = await import('./firebase-config.js');
+            const { getFirestore, writeBatch, doc, collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const db = getFirestore(app);
+
+            const loans = JSON.parse(localStorage.getItem('loans')) || [];
+            const employees = JSON.parse(localStorage.getItem('employees')) || [];
+            const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+            const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
+            const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+            const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+
+            const batchSize = 450;
+            let batches = [];
+            let currentBatch = writeBatch(db);
+            let operationCount = 0;
+
+            const sanitize = (obj) => {
+                try {
+                    return JSON.parse(JSON.stringify(obj));
+                } catch (e) {
+                    console.warn("Failed to sanitize object:", e);
+                    return {};
+                }
+            };
+
+            const addToBatch = (ref, data) => {
+                try {
+                    currentBatch.set(ref, data);
+                    operationCount++;
+                    if (operationCount >= batchSize) {
+                        batches.push(currentBatch);
+                        currentBatch = writeBatch(db);
+                        operationCount = 0;
+                    }
+                } catch (e) {
+                    console.error("Failed to add to batch:", e);
+                }
+            };
+
+            // Process all data types
+            loans.forEach((loan, index) => {
+                try {
+                    const loanId = loan.id || `loan_${Date.now()}_${index}`;
+                    const loanRef = doc(db, "loans", loanId);
+                    addToBatch(loanRef, sanitize(loan));
+                } catch (e) {
+                    console.error("Error processing loan:", e);
+                }
+            });
+
+            employees.forEach((emp, index) => {
+                try {
+                    const empId = emp.id || `emp_${Date.now()}_${index}`;
+                    const empRef = doc(db, "employees", empId);
+                    addToBatch(empRef, sanitize(emp));
+                } catch (e) {
+                    console.error("Error processing employee:", e);
+                }
+            });
+
+            expenses.forEach((exp, index) => {
+                try {
+                    const expId = exp.id || `exp_${Date.now()}_${index}`;
+                    const expRef = doc(db, "expenses", expId);
+                    addToBatch(expRef, sanitize(exp));
+                } catch (e) {
+                    console.error("Error processing expense:", e);
+                }
+            });
+
+            walletTransactions.forEach((trans, index) => {
+                try {
+                    const transId = trans.id || `trans_${Date.now()}_${index}`;
+                    const transRef = doc(db, "wallet_transactions", transId);
+                    addToBatch(transRef, sanitize(trans));
+                } catch (e) {
+                    console.error("Error processing transaction:", e);
+                }
+            });
+
+            admins.forEach((admin, index) => {
+                try {
+                    const adminRef = doc(db, "admin_users", admin.username);
+                    addToBatch(adminRef, sanitize(admin));
+                } catch (e) {
+                    console.error("Error processing admin:", e);
+                }
+            });
+
+            const profileRef = doc(db, "settings", "companyProfile");
+            addToBatch(profileRef, sanitize(profile));
+
+            if (operationCount > 0) batches.push(currentBatch);
+
+            console.log(`Manual sync: Committing ${batches.length} batches...`);
+            
+            // Add timeout
+            const commitPromises = batches.map(batch => batch.commit());
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Sync timeout")), 30000)
+            );
+
+            await Promise.race([
+                Promise.all(commitPromises),
+                timeoutPromise
+            ]);
+
+            updateSyncStatus('synced', 'Manual sync completed');
+            setTimeout(() => updateSyncStatus('synced'), 3000); // Reset after 3 seconds
+
+        } catch (syncError) {
+            console.error("Manual sync failed:", syncError);
+            updateSyncStatus('error', syncError.message);
+            setTimeout(() => updateSyncStatus('synced'), 5000); // Reset after 5 seconds
+        }
+    };
+
     const saveLoans = async (loanData = null, isDelete = false) => {
         localStorage.setItem('loans', JSON.stringify(loans));
         
@@ -176,22 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return null; // Loan fully paid or closed
     };
 
-    // --- SIDEBAR PROFILE LOGIC ---
-    const updateSidebarProfile = () => {
-        const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-        const sidebarLogo = document.getElementById('sidebar-logo');
-        const sidebarCompanyName = document.getElementById('sidebar-company-name');
-        
-        if (savedProfile.name && sidebarCompanyName) {
-            sidebarCompanyName.textContent = savedProfile.name;
-        }
-        if (savedProfile.logo && sidebarLogo) {
-            sidebarLogo.src = savedProfile.logo;
-            sidebarLogo.style.display = 'block';
-        }
-    };
-    updateSidebarProfile();
-
     // --- UPDATE HEADER USERNAME ---
     const headerUserName = document.querySelector('.user-name');
     const headerUserRole = document.querySelector('.user-role');
@@ -213,37 +470,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (walletLink) walletLink.style.display = 'none';
         const profileLink = document.querySelector('nav a[href="profile.html"]');
         if (profileLink) profileLink.style.display = 'none';
+
+        // Hide Wallet from Quick Actions
+        const qaWalletLink = document.querySelector('.quick-actions-list a[href="wallet.html"]');
+        if (qaWalletLink) qaWalletLink.parentElement.style.display = 'none';
     }
 
     // --- MANAGE LOANS PAGE LOGIC (index.html) ---
     const loanTableBody = document.querySelector('#loanTable tbody');
     const paperLoanForm = document.getElementById('paperLoanForm');
-
-    // Elements for Manage Loans Stats
-    const mlTotalBorrowersEl = document.getElementById('ml-total-borrowers');
-    const mlActiveLoansEl = document.getElementById('ml-active-loans');
-    const mlOverdueEl = document.getElementById('ml-overdue');
-    const mlClosedLoansEl = document.getElementById('ml-closed-loans');
-    const addLoanCard = document.getElementById('add-loan-card');
-
-    const updateManageLoansStats = () => {
-        if (mlTotalBorrowersEl) {
-            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim())).size;
-            const today = new Date().toISOString().split('T')[0];
-            const overdueCount = loans.filter(l => {
-                const nextDue = getNextDueDate(l);
-                return nextDue && nextDue.toISOString().split('T')[0] < today;
-            }).length;
-            const closedCount = loans.filter(l => l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)).length;
-
-            mlTotalBorrowersEl.textContent = uniqueBorrowers;
-            mlActiveLoansEl.textContent = loans.length - closedCount;
-            mlOverdueEl.textContent = overdueCount;
-            if (mlClosedLoansEl) mlClosedLoansEl.textContent = closedCount;
-        }
-    };
-    updateManageLoansStats();
-    document.addEventListener('loans-updated', updateManageLoansStats);
 
     if (loanTableBody) {
         // Function to render the table
@@ -554,9 +789,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const renderDashboard = () => {
             // Calculate Stats
-            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim())).size;
-            const today = new Date().toISOString().split('T')[0];
             const closedCount = loans.filter(l => l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)).length;
+            const activeLoans = loans.filter(l => !(l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)));
+            const uniqueBorrowers = new Set(activeLoans.map(l => (l.borrower || '').trim()).filter(b => b)).size;
             
             // Calculate Total Interest Earned (Projected)
             const totalInterest = loans.reduce((sum, loan) => {
@@ -577,7 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = new Date(loan.dueDate);
+                const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
 
                 if (loan.paidInstallments) {
                     loan.paidInstallments.forEach(inst => {
@@ -613,11 +848,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = new Date(loan.dueDate);
+                const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
                 
                 // 1. Disbursed & Interest (Filter by Issue Date)
                 let includeLoan = true;
-                if (filterDate) {
+                if (filterDate && loan.dueDate) {
                     const loanMonth = issueDate.toISOString().slice(0, 7);
                     if (loanMonth !== filterDate) includeLoan = false;
                 }
@@ -764,7 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loanChart = new Chart(chartCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Active Loans', 'Closed Loans'],   //to sho
+                        labels: ['Active Loans', 'Closed Loans'],   //to show details of Loan Status Distribution graph 
                         datasets: [{
                             data: [loans.length - closedCount, closedCount],
                             backgroundColor: ['#3498db', '#e74c3c'],
@@ -801,9 +1036,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 loans.forEach(loan => {
                     // Outflow: Disbursements
-                    const issueMonth = loan.dueDate.slice(0, 7);
-                    if (cashFlow.hasOwnProperty(issueMonth)) {
-                        cashFlow[issueMonth] -= (parseFloat(loan.amount) || 0);
+                    if (loan.dueDate) {
+                        const issueMonth = loan.dueDate.slice(0, 7);
+                        if (cashFlow.hasOwnProperty(issueMonth)) {
+                            cashFlow[issueMonth] -= (parseFloat(loan.amount) || 0);
+                        }
                     }
 
                     // Inflow: Repayments
@@ -811,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const R = parseFloat(loan.interest) || 0;
                     const N = parseInt(loan.tenure) || 1;
                     const emi = (P / N) + (P * (R / 100));
-                    const issueDate = new Date(loan.dueDate);
+                    const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
 
                     // Full Installments
                     if (loan.paidInstallments) {
@@ -1027,28 +1264,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Company details saved locally!');
                 updateSidebarProfile();
             }
-        });
-    }
-
-    // --- DEMO DATA LOGIC ---
-    const loadDemoBtn = document.getElementById('loadDemoBtn');
-    if (loadDemoBtn) {
-        loadDemoBtn.addEventListener('click', () => {
-            const demoLoans = [
-                { borrower: "Alice Johnson", amount: "5000", dueDate: "2025-06-15", tenure: "12", interest: "10" },
-                { borrower: "Bob Smith", amount: "1200", dueDate: "2025-07-20", tenure: "6", interest: "12" },
-                { borrower: "Charlie Brown", amount: "350", dueDate: "2024-12-01", tenure: "3", interest: "5" }, // Past date
-                { borrower: "Diana Prince", amount: "10000", dueDate: "2025-08-10", tenure: "24", interest: "8" },
-                { borrower: "Evan Wright", amount: "2500", dueDate: "2025-05-05", tenure: "12", interest: "10" },
-                { borrower: "Fiona Green", amount: "750", dueDate: "2025-09-12", tenure: "6", interest: "15" }
-            ];
-            
-            demoLoans.forEach(l => {
-                loans.push(l);
-                saveLoans(l);
-            });
-            alert('Demo borrowers and loans loaded successfully!');
-            window.location.reload();
         });
     }
 
@@ -2115,10 +2330,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationList = document.getElementById('notification-list');
     const notificationCount = document.getElementById('notification-count');
 
+    // --- QUICK ACTIONS LOGIC ---
+    const quickActionsBtn = document.getElementById('quick-actions-btn');
+    const quickActionsDropdown = document.getElementById('quick-actions-dropdown');
+
+    if (quickActionsBtn && quickActionsDropdown) {
+        quickActionsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (notificationDropdown) notificationDropdown.classList.remove('show');
+            quickActionsDropdown.classList.toggle('show');
+        });
+    }
+
     if (notificationBtn && notificationDropdown) {
         // Toggle Dropdown
         notificationBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (quickActionsDropdown) quickActionsDropdown.classList.remove('show');
             notificationDropdown.classList.toggle('show');
         });
 
@@ -2126,6 +2354,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('click', () => {
             if (notificationDropdown.classList.contains('show')) {
                 notificationDropdown.classList.remove('show');
+            }
+            if (quickActionsDropdown && quickActionsDropdown.classList.contains('show')) {
+                quickActionsDropdown.classList.remove('show');
             }
         });
 
@@ -2227,35 +2458,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- SIDEBAR TOGGLE LOGIC ---
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    const sidebar = document.querySelector('.sidebar');
-    
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-        });
-    }
+    // --- AUTO LOGOUT LOGIC (30 MIN INACTIVITY) ---
+    if (localStorage.getItem('isLoggedIn') === 'true') {
+        const inactivityLimit = 30 * 60 * 1000; // 30 Minutes
+        let inactivityTimer;
 
-    const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn');
-    if (sidebarCollapseBtn && sidebar) {
-        sidebarCollapseBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-        });
-    }
+        const performAutoLogout = () => {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('userRole');
+            alert('You have been logged out due to inactivity.');
+            window.location.href = 'login.html';
+        };
 
-    // --- LOGOUT LOGIC ---
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (confirm('Are you sure you want to logout?')) {
-                localStorage.removeItem('isLoggedIn');
-                localStorage.removeItem('currentUser');
-                alert('You have been logged out successfully.');
-                window.location.href = 'login.html';
-            }
+        const resetInactivityTimer = () => {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(performAutoLogout, inactivityLimit);
+        };
+
+        // Listen for user activity to reset timer
+        ['mousemove', 'click', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, resetInactivityTimer);
         });
+
+        resetInactivityTimer(); // Start timer
     }
 
     // --- FORMS REPOSITORY LOGIC (forms.html) ---
