@@ -53,8 +53,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         initFirestore();
 
+        // Listen for loan updates (from app.js) to keep wallet in sync
+        document.addEventListener('loans-updated', () => {
+            loans = JSON.parse(localStorage.getItem('loans')) || [];
+            renderWallet();
+        });
+
         let currentPage = 1;
         const rowsPerPage = 15;
+
+        const isValidDate = (d) => d instanceof Date && !isNaN(d);
 
         const getAllTransactions = () => {
             let allTransactions = [];
@@ -77,15 +85,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // 2. Loan Disbursements (Money Out)
             loans.forEach(loan => {
                 if (loan.amount && loan.dueDate) {
-                    allTransactions.push({
-                        date: loan.dueDate, // Issue Date
-                        description: `Disbursement - ${loan.borrower}`,
-                        type: 'Disbursement',
-                        amount: parseFloat(loan.amount),
-                        isCredit: false,
-                        borrower: loan.borrower,
-                        source: 'loan'
-                    });
+                    const disbursementDate = new Date(loan.dueDate);
+                    if (isValidDate(disbursementDate)) {
+                        allTransactions.push({
+                            date: disbursementDate.toISOString(), // Issue Date
+                            description: `Disbursement - ${loan.borrower}`,
+                            type: 'Disbursement',
+                            amount: parseFloat(loan.amount),
+                            isCredit: false,
+                            borrower: loan.borrower,
+                            source: 'loan'
+                        });
+                    }
                 }
 
                 // 3. EMI Payments & Closures (Money In)
@@ -95,26 +106,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 const emi = (P / N) + (P * (R / 100));
                 const issueDate = new Date(loan.dueDate);
 
+                if (loan.emi_schedule) {
+                    Object.entries(loan.emi_schedule).forEach(([instNum, entry]) => {
+                        if (entry.date && entry.amountPaid) {
+                            allTransactions.push({
+                                date: entry.date,
+                                description: `${entry.status === 'Paid' ? 'EMI Received' : 'Partial Payment'} - ${loan.borrower} (#${instNum})`,
+                                type: entry.status === 'Paid' ? 'EMI Payment' : 'Partial Payment',
+                                amount: parseFloat(entry.amountPaid),
+                                isCredit: true,
+                                borrower: loan.borrower,
+                                source: 'loan'
+                            });
+                        }
+                    });
+                } else {
+                    // Legacy Support
                 if (loan.paidInstallments && loan.paidInstallments.length > 0) {
                     loan.paidInstallments.forEach(instNum => {
                         // Use actual paid date if available, else estimate based on due date
                         let payDate;
                         if (loan.paidDates && loan.paidDates[instNum]) {
                             payDate = new Date(loan.paidDates[instNum]);
-                        } else {
+                        } else if(isValidDate(issueDate)) {
                             payDate = new Date(issueDate);
                             payDate.setMonth(issueDate.getMonth() + parseInt(instNum));
                         }
                         
-                        allTransactions.push({
-                            date: payDate.toISOString(),
-                            description: `EMI Received - ${loan.borrower} (#${instNum})`,
-                            type: 'EMI Payment',
-                            amount: emi,
-                            isCredit: true,
-                            borrower: loan.borrower,
-                            source: 'loan'
-                        });
+                        if (isValidDate(payDate)) {
+                            allTransactions.push({
+                                date: payDate.toISOString(),
+                                description: `EMI Received - ${loan.borrower} (#${instNum})`,
+                                type: 'EMI Payment',
+                                amount: emi,
+                                isCredit: true,
+                                borrower: loan.borrower,
+                                source: 'loan'
+                            });
+                        }
                     });
                 }
 
@@ -124,26 +153,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         let payDate;
                         if (loan.partialPaymentDates && loan.partialPaymentDates[instNum]) {
                             payDate = new Date(loan.partialPaymentDates[instNum]);
-                        } else {
+                        } else if (isValidDate(issueDate)) {
                             payDate = new Date(issueDate);
                             payDate.setMonth(issueDate.getMonth() + parseInt(instNum));
                         }
 
-                        allTransactions.push({
-                            date: payDate.toISOString(),
-                            description: `Partial Payment - ${loan.borrower} (#${instNum})`,
-                            type: 'Partial Payment',
-                            amount: parseFloat(amount),
-                            isCredit: true,
-                            borrower: loan.borrower,
-                            source: 'loan'
-                        });
+                        if(isValidDate(payDate)) {
+                            allTransactions.push({
+                                date: payDate.toISOString(),
+                                description: `Partial Payment - ${loan.borrower} (#${instNum})`,
+                                type: 'Partial Payment',
+                                amount: parseFloat(amount),
+                                isCredit: true,
+                                borrower: loan.borrower,
+                                source: 'loan'
+                            });
+                        }
                     });
+                }
                 }
             });
 
             // Sort by date descending
-            return allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+            return allTransactions.sort((a, b) => {
+                const dateA = a.date ? new Date(a.date) : new Date(0);
+                const dateB = b.date ? new Date(b.date) : new Date(0);
+                return dateB - dateA;
+            });
         };
 
         const renderChart = (transactions) => {

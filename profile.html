@@ -11,28 +11,8 @@
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
-     <aside class="sidebar">
-             <div class="sidebar-header">
-                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
-                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
-            </div>
-            <nav>
-                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
-                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
-                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
-                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
-                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
-                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
-                <a href="profile.html" class="active"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
-                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
-                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="sidebar-collapse-btn" class="collapse-btn">
-                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
-                    <span class="link-text">Collapse Sidebar</span>
-                </button>
-            </div>
+     <aside class="sidebar collapsed">
+            
         </aside>
 
         <!-- Main Content -->
@@ -49,6 +29,19 @@
                             </div>
                         </div>
                     </div>
+                    <div class="header-right">
+                        <div class="quick-actions-wrapper" style="position: relative; margin-right: 15px;">
+                            <button id="quick-actions-btn" class="icon-btn" title="Quick Actions">⚡</button>
+                            <div id="quick-actions-dropdown" class="dropdown-content">
+                                <div class="dropdown-header">Quick Actions</div>
+                                <ul class="quick-actions-list">
+                                    <li><a href="add-loan.html" target="_blank">Add New Loan</a></li>
+                                    <li><a href="loan-calculator.html">EMI Calculator</a></li>
+                                    <li><a href="wallet.html">Wallet / Funds</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </header>
             <main>
@@ -56,23 +49,23 @@
                     <h2>Organization Details</h2>
                     <form id="companyProfileForm">
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Company Name</label>
+                            <label for="cp-name" style="width:100%; font-weight:bold; margin-bottom:5px;">Company Name</label>
                             <input type="text" id="cp-name" placeholder="Enter Company Name" required>
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Registered Address</label>
+                            <label for="cp-address" style="width:100%; font-weight:bold; margin-bottom:5px;">Registered Address</label>
                             <input type="text" id="cp-address" placeholder="Enter Address" required>
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Contact Number</label>
+                            <label for="cp-contact" style="width:100%; font-weight:bold; margin-bottom:5px;">Contact Number</label>
                             <input type="text" id="cp-contact" placeholder="Enter Contact Number">
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Email</label>
+                            <label for="cp-email" style="width:100%; font-weight:bold; margin-bottom:5px;">Email</label>
                             <input type="email" id="cp-email" placeholder="Enter Email">
                         </div>
                         <div class="form-group">
-                            <label style="width:100%; font-weight:bold; margin-bottom:5px;">Company Logo</label>
+                            <label for="cp-logo-upload" style="width:100%; font-weight:bold; margin-bottom:5px;">Company Logo</label>
                             <input type="file" id="cp-logo-upload" accept="image/*" style="padding: 5px;">
                             <div style="margin-top: 10px; width: 100%;">
                                 <img id="cp-logo-preview" src="" alt="Logo Preview" style="max-height: 80px; display: none; border: 1px solid #ddd; padding: 5px; border-radius: 4px;">

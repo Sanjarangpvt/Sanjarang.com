@@ -24,70 +24,7 @@
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
-          <div class="sidebar-header">
-                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
-                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
-            </div>
-            <nav>
-                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
-                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
-                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
-                <a href="expenses.html"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
-                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
-                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
-                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
-            </nav>
-        </aside>
-
-        <!-- Main Content -->
-        <div class="main-content">
-            <header class="custom-header-box">
-                <div class="header-container">
-                    <div class="header-left">
-                        <button id="sidebar-toggle" class="icon-btn">☰</button>
-                        <div class="header-title-group">
-                            <h1>No Objection Certificate</h1>
-                            <div class="user-profile">
-                                <span class="user-name">Admin</span>
-                                <span class="user-role">Administrator</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-            <main>
-                <div class="btn-container" style="text-align: right; margin-bottom: 20px;">
-                    <button onclick="downloadNOC()" class="btn" style="background-color: #27ae60; color: white;">Download PDF</button>
-                    <button onclick="window.print()" class="btn btn-print" style="background-color: #3498db; color: white;">Print</button>
-                </div>
-
-                <div id="noc-paper" class="agreement-container">
-                    <div class="agreement-watermark">NOC</div>
-                    <h1>TO WHOM IT MAY CONCERN</h1>
-                    <p style="text-align: right;"><strong>Date:</strong> <span id="noc-date">__________________</span></p>
-
-                    <div class="agreement-content">
-                        <p>This is to certify that <strong><span id="noc-borrower-name">______________________________________________________</span></strong>,
-                        resident of <strong>________________________________________________________________________</strong>,
-                        had availed a loan (Loan Ref: <strong>__________________</strong>) from <strong><span id="noc-company-name">SANJARANG PRIVATE LIMITED</span></strong>.</p>
-
-                        <p>We hereby confirm that the said borrower has repaid the entire loan amount along with the accrued interest and other charges. There are no outstanding dues against the said loan account as of date.</p>
-
-                        <p>This institution has <strong>NO OBJECTION</strong> to the borrower closing this account or availing financial facilities from other institutions.</p>
-                    </div>
-
-                    <div class="agreement-signature-section">
-                        <div style="width: 40%;"></div> <!-- Spacer -->
-                        <div class="agreement-signature-box">
-                            <p><strong>For <span id="noc-company-sign-name">Sanjarang Pvt Ltd</span></strong><br>(Authorized Signatory)</p>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    </div>
-    <script src="app.js"></script>
-    <script>
+        ipt>
         document.addEventListener('DOMContentLoaded', () => {
             const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
             if (savedProfile.name) {

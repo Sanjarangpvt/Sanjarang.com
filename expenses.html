@@ -13,28 +13,8 @@
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
-        <aside class="sidebar">
-              <div class="sidebar-header">
-                <img id="sidebar-logo" src="LOGOS/logo.jpg" alt="Company Logo" style="width: 60px; height: 60px;">
-                <span id="sidebar-company-name">SANJARANG GROUP PVT. LTD.</span>
-            </div>
-            <nav>
-                <a href="dashboard.html"><i class="bi bi-speedometer2"></i> <span class="link-text">Dashboard</span></a>
-                <a href="manage-loans.html"><i class="bi bi-cash-coin"></i> <span class="link-text">Manage Loans</span></a>
-                <a href="wallet.html"><i class="bi bi-wallet2"></i> <span class="link-text">Wallet</span></a>
-                <a href="expenses.html" class="active"><i class="bi bi-receipt"></i> <span class="link-text">Expenses</span></a>
-                <a href="report.html"><i class="bi bi-bar-chart-line"></i> <span class="link-text">Report</span></a>
-                <a href="forms.html"><i class="bi bi-file-earmark-text"></i> <span class="link-text">Forms</span></a>
-                <a href="profile.html"><i class="bi bi-building"></i> <span class="link-text">Company Profile</span></a>
-                <a href="settings.html"><i class="bi bi-gear"></i> <span class="link-text">Settings</span></a>
-                <a href="#" id="logout-btn"><i class="bi bi-box-arrow-right"></i> <span class="link-text">Logout</span></a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="sidebar-collapse-btn" class="collapse-btn">
-                    <span class="icon"><i class="bi bi-chevron-left"></i></span>
-                    <span class="link-text">Collapse Sidebar</span>
-                </button>
-            </div>
+        <aside class="sidebar collapsed">
+              
         </aside>
 
         <!-- Main Content -->
@@ -53,8 +33,20 @@
                     </div>
                     <div class="header-right">
                         <div class="search-wrapper">
-                            <input type="text" id="global-search" placeholder="Search borrowers...">
+                            <label for="global-search" style="position: absolute; left: -9999px;">Search borrowers</label>
+                            <input type="text" id="global-search" autocomplete="off" placeholder="Search borrowers...">
                             <div id="search-results" class="search-dropdown"></div>
+                        </div>
+                        <div class="quick-actions-wrapper" style="position: relative; margin-right: 15px;">
+                            <button id="quick-actions-btn" class="icon-btn" title="Quick Actions">⚡</button>
+                            <div id="quick-actions-dropdown" class="dropdown-content">
+                                <div class="dropdown-header">Quick Actions</div>
+                                <ul class="quick-actions-list">
+                                    <li><a href="add-loan.html" target="_blank">Add New Loan</a></li>
+                                    <li><a href="loan-calculator.html">EMI Calculator</a></li>
+                                    <li><a href="wallet.html">Wallet / Funds</a></li>
+                                </ul>
+                            </div>
                         </div>
                         <div id="current-datetime"></div>
                     </div>
@@ -102,16 +94,16 @@
             <h2>Add New Expense</h2>
             <form id="expense-form">
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Date</label>
-                    <input type="date" id="exp-date" required style="width: 100%;">
+                    <label for="exp-date" style="display:block; margin-bottom:5px; font-weight:bold;">Date</label>
+                    <input type="date" id="exp-date" name="exp-date" autocomplete="off" required style="width: 100%;">
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
-                    <input type="text" id="exp-desc" placeholder="e.g. Office Rent" required style="width: 100%;">
+                    <label for="exp-desc" style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
+                    <input type="text" id="exp-desc" name="exp-desc" autocomplete="off" placeholder="e.g. Office Rent" required style="width: 100%;">
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Category</label>
-                    <select id="exp-category" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <label for="exp-category" style="display:block; margin-bottom:5px; font-weight:bold;">Category</label>
+                    <select id="exp-category" name="exp-category" autocomplete="off" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                         <option value="Office">Office</option>
                         <option value="Salary">Salary</option>
                         <option value="Utilities">Utilities</option>
@@ -120,8 +112,8 @@
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Amount</label>
-                    <input type="number" id="exp-amount" required step="0.01" style="width: 100%;">
+                    <label for="exp-amount" style="display:block; margin-bottom:5px; font-weight:bold;">Amount</label>
+                    <input type="number" id="exp-amount" name="exp-amount" autocomplete="off" required step="0.01" style="width: 100%;">
                 </div>
                 <button type="submit" style="width: 100%; margin-top: 10px; background-color: #e74c3c;">Save Expense</button>
             </form>

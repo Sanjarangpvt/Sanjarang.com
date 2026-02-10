@@ -1,4 +1,113 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- DYNAMIC SIDEBAR LOADER ---
+    // --- HELPER: UPDATE SIDEBAR PROFILE ---
+    // Defined here so it is available for loadSidebar and Firestore listeners
+    const updateSidebarProfile = () => {
+        const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+        const sidebarLogo = document.getElementById('sidebar-logo');
+        const sidebarCompanyName = document.getElementById('sidebar-company-name');
+        
+        if (savedProfile.name && sidebarCompanyName) {
+            sidebarCompanyName.textContent = savedProfile.name;
+        }
+        if (savedProfile.logo && sidebarLogo) {
+            sidebarLogo.src = savedProfile.logo;
+            sidebarLogo.style.display = 'block';
+        }
+    };
+
+    // --- DYNAMIC SIDEBAR LOADER (WITH CACHING) ---
+    const loadSidebar = async () => {
+        const sidebar = document.querySelector('.sidebar');
+        const headerLeft = document.querySelector('.header-left');
+        const CACHE_KEY = 'sidebar_html_cache';
+
+        if (sidebar) {
+            // 1. Load HTML
+            // Helper to setup sidebar events/state after HTML injection
+            const initSidebar = () => {
+                // Highlight Active Link
+                const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+                sidebar.querySelectorAll('nav a').forEach(link => {
+                    link.classList.remove('active'); // Clear cached active state
+                    if (link.getAttribute('href') === currentPath) link.classList.add('active');
+                });
+
+                // Adjust Dashboard Link for Non-Admins (Employees)
+                const userRole = localStorage.getItem('userRole');
+                if (userRole !== 'Administrator') {
+                    const dashboardLink = sidebar.querySelector('a[href="dashboard.html"]');
+                    if (dashboardLink) dashboardLink.setAttribute('href', 'Employee-dashboard.html');
+                }
+
+                // Update Profile Info
+                updateSidebarProfile();
+
+                // Setup Logout
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) {
+                    // Clone to remove old listeners if any
+                    const newBtn = logoutBtn.cloneNode(true);
+                    logoutBtn.parentNode.replaceChild(newBtn, logoutBtn);
+                    newBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (confirm('Are you sure you want to logout?')) {
+                            localStorage.removeItem('isLoggedIn');
+                            localStorage.removeItem('currentUser');
+                            window.location.href = 'login.html';
+                        }
+                    });
+                }
+            };
+
+            // 1. Load from Cache Immediately (Fixes Flickering)
+            const cachedHTML = localStorage.getItem(CACHE_KEY);
+            if (cachedHTML) {
+                sidebar.innerHTML = cachedHTML;
+                initSidebar();
+            }
+
+            // 2. Fetch Fresh Content in Background
+            try {
+                const response = await fetch('sidebar.html');
+                if (response.ok) {
+                    const html = await response.text();
+                    // Only update DOM if content changed
+                    if (html !== cachedHTML) {
+                        sidebar.innerHTML = html;
+                        localStorage.setItem(CACHE_KEY, html);
+                        initSidebar();
+                    }
+                }
+            } catch (e) { console.error("Sidebar fetch error", e); }
+
+            // 3. Setup Sidebar State & Toggle
+            const savedState = localStorage.getItem('sidebarState');
+            if (savedState === 'expanded') {
+                sidebar.classList.remove('collapsed');
+            } else {
+                sidebar.classList.add('collapsed');
+            }
+
+            // Remove legacy static button if present to avoid duplicates
+            const staticBtn = document.getElementById('sidebar-toggle');
+            if (staticBtn) staticBtn.remove();
+
+            if (headerLeft && !document.getElementById('main-sidebar-toggle')) {
+                const headerToggleBtn = document.createElement('button');
+                headerToggleBtn.id = 'main-sidebar-toggle';
+                headerToggleBtn.className = 'icon-btn';
+                headerToggleBtn.innerHTML = '<i class="bi bi-list" style="font-size: 1.5rem;"></i>';
+                headerLeft.prepend(headerToggleBtn);
+                headerToggleBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('collapsed');
+                    localStorage.setItem('sidebarState', sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded');
+                });
+            }
+        }
+    };
+    loadSidebar();
+
     // --- WELCOME TOAST LOGIC ---
     if (localStorage.getItem('showWelcomeToast') === 'true') {
         const user = localStorage.getItem('currentUser') || 'User';
@@ -102,8 +211,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1. Load data from LocalStorage (Shared between pages)
     let loans = JSON.parse(localStorage.getItem('loans')) || [];
+    // Split local data to prevent flickering before Firestore loads
+    let fetchedLoans = loans.filter(l => l.firestoreCollection !== 'loan_applications');
+    let fetchedApps = loans.filter(l => l.firestoreCollection === 'loan_applications');
+    let fetchedSchedules = {}; // Map: loanId -> schedule object
+
     let db;
     let firestoreOps = {};
+
+    // Helper to combine data from both collections
+    const updateAllLoans = () => {
+        loans = [...fetchedLoans, ...fetchedApps].map(loan => {
+            if (fetchedSchedules[loan.id]) {
+                return { ...loan, emi_schedule: fetchedSchedules[loan.id] };
+            }
+            return loan;
+        });
+        localStorage.setItem('loans', JSON.stringify(loans));
+        document.dispatchEvent(new CustomEvent('loans-updated'));
+    };
 
     // --- FIRESTORE REAL-TIME LISTENER ---
     const initFirestore = async () => {
@@ -113,10 +239,28 @@ document.addEventListener('DOMContentLoaded', () => {
             db = getFirestore(app);
             firestoreOps = { doc, setDoc, addDoc, deleteDoc, collection };
             
+            // Listener 1: Active/Closed Loans
             onSnapshot(collection(db, "loans"), (snapshot) => {
-                loans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                localStorage.setItem('loans', JSON.stringify(loans)); // Sync local storage
-                document.dispatchEvent(new CustomEvent('loans-updated'));
+                fetchedLoans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, firestoreCollection: 'loans' }));
+                updateAllLoans();
+            });
+
+            // Listener 2: Loan Applications (Pending)
+            onSnapshot(collection(db, "loan_applications"), (snapshot) => {
+                fetchedApps = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return { ...data, id: doc.id, status: data.status || 'Pending', firestoreCollection: 'loan_applications' };
+                });
+                updateAllLoans();
+            });
+
+            // Listener 3: EMI Schedules
+            onSnapshot(collection(db, "emi_schedule"), (snapshot) => {
+                fetchedSchedules = {};
+                snapshot.docs.forEach(doc => {
+                    fetchedSchedules[doc.id] = doc.data();
+                });
+                updateAllLoans();
             });
 
             // Sync Company Profile
@@ -138,32 +282,252 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     initFirestore();
 
+    // --- SYNC STATUS MANAGEMENT ---
+    let syncStatus = 'synced'; // 'synced', 'syncing', 'offline', 'error'
+    
+    const updateSyncStatus = (status, message = '') => {
+        syncStatus = status;
+        const syncElement = document.getElementById('sync-status');
+        if (syncElement) {
+            syncElement.innerHTML = getSyncStatusHTML(status, message);
+        }
+        console.log(`Sync status: ${status}${message ? ' - ' + message : ''}`);
+    };
+
+    const getSyncStatusHTML = (status, message) => {
+        const icons = {
+            synced: '<i class="bi bi-cloud-check"></i>',
+            syncing: '<i class="bi bi-cloud-upload"></i>',
+            offline: '<i class="bi bi-cloud-slash"></i>',
+            error: '<i class="bi bi-cloud-exclamation"></i>'
+        };
+        
+        const texts = {
+            synced: 'Synced',
+            syncing: 'Syncing...',
+            offline: 'Offline',
+            error: 'Sync Error'
+        };
+
+        const colors = {
+            synced: '#27ae60',
+            syncing: '#f39c12',
+            offline: '#7f8c8d',
+            error: '#e74c3c'
+        };
+
+        return `<span style="color: ${colors[status]}">${icons[status]} ${texts[status]}${message ? ': ' + message : ''}</span>`;
+    };
+
+    // Initialize sync status
+    updateSyncStatus('synced');
+
+    // Global sync function for manual sync
+    window.manualSync = async () => {
+        if (syncStatus === 'syncing') return;
+        
+        updateSyncStatus('syncing');
+        try {
+            // Import sync function from login.js or recreate it
+            const { app } = await import('./firebase-config.js');
+            const { getFirestore, writeBatch, doc, collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const db = getFirestore(app);
+
+            const loans = JSON.parse(localStorage.getItem('loans')) || [];
+            const employees = JSON.parse(localStorage.getItem('employees')) || [];
+            const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+            const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
+            const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+            const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+
+            const batchSize = 450;
+            let batches = [];
+            let currentBatch = writeBatch(db);
+            let operationCount = 0;
+
+            const sanitize = (obj) => {
+                try {
+                    return JSON.parse(JSON.stringify(obj));
+                } catch (e) {
+                    console.warn("Failed to sanitize object:", e);
+                    return {};
+                }
+            };
+
+            const addToBatch = (ref, data) => {
+                try {
+                    currentBatch.set(ref, data);
+                    operationCount++;
+                    if (operationCount >= batchSize) {
+                        batches.push(currentBatch);
+                        currentBatch = writeBatch(db);
+                        operationCount = 0;
+                    }
+                } catch (e) {
+                    console.error("Failed to add to batch:", e);
+                }
+            };
+
+            // Process all data types
+            loans.forEach((loan, index) => {
+                try {
+                    const loanId = loan.id || `loan_${Date.now()}_${index}`;
+                    const loanRef = doc(db, "loans", loanId);
+                    addToBatch(loanRef, sanitize(loan));
+                } catch (e) {
+                    console.error("Error processing loan:", e);
+                }
+            });
+
+            employees.forEach((emp, index) => {
+                try {
+                    const empId = emp.id || `emp_${Date.now()}_${index}`;
+                    const empRef = doc(db, "employees", empId);
+                    addToBatch(empRef, sanitize(emp));
+                } catch (e) {
+                    console.error("Error processing employee:", e);
+                }
+            });
+
+            expenses.forEach((exp, index) => {
+                try {
+                    const expId = exp.id || `exp_${Date.now()}_${index}`;
+                    const expRef = doc(db, "expenses", expId);
+                    addToBatch(expRef, sanitize(exp));
+                } catch (e) {
+                    console.error("Error processing expense:", e);
+                }
+            });
+
+            walletTransactions.forEach((trans, index) => {
+                try {
+                    const transId = trans.id || `trans_${Date.now()}_${index}`;
+                    const transRef = doc(db, "wallet_transactions", transId);
+                    addToBatch(transRef, sanitize(trans));
+                } catch (e) {
+                    console.error("Error processing transaction:", e);
+                }
+            });
+
+            // Sync EMI Schedules
+            loans.forEach((loan) => {
+                if (loan.emi_schedule && loan.id) {
+                    try {
+                        const schedRef = doc(db, "emi_schedule", loan.id);
+                        addToBatch(schedRef, sanitize(loan.emi_schedule));
+                    } catch (e) { console.error("Error processing schedule:", e); }
+                }
+            });
+
+            admins.forEach((admin, index) => {
+                try {
+                    const adminRef = doc(db, "admin_users", admin.username);
+                    addToBatch(adminRef, sanitize(admin));
+                } catch (e) {
+                    console.error("Error processing admin:", e);
+                }
+            });
+
+            const profileRef = doc(db, "settings", "companyProfile");
+            addToBatch(profileRef, sanitize(profile));
+
+            if (operationCount > 0) batches.push(currentBatch);
+
+            console.log(`Manual sync: Committing ${batches.length} batches...`);
+            
+            // Add timeout
+            const commitPromises = batches.map(batch => batch.commit());
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Sync timeout")), 30000)
+            );
+
+            await Promise.race([
+                Promise.all(commitPromises),
+                timeoutPromise
+            ]);
+
+            updateSyncStatus('synced', 'Manual sync completed');
+            setTimeout(() => updateSyncStatus('synced'), 3000); // Reset after 3 seconds
+
+        } catch (syncError) {
+            console.error("Manual sync failed:", syncError);
+            updateSyncStatus('error', syncError.message);
+            setTimeout(() => updateSyncStatus('synced'), 5000); // Reset after 5 seconds
+        }
+    };
+
     const saveLoans = async (loanData = null, isDelete = false) => {
         localStorage.setItem('loans', JSON.stringify(loans));
         
         if (db && firestoreOps.doc && loanData) {
             const { doc, setDoc, addDoc, deleteDoc, collection } = firestoreOps;
             try {
+                // Determine Collection: Use existing property or infer from status
+                let colName = loanData.firestoreCollection;
+                if (!colName) {
+                    colName = (loanData.status === 'Pending') ? "loan_applications" : "loans";
+                }
+
                 if (isDelete) {
-                    if (loanData.id) await deleteDoc(doc(db, "loans", loanData.id));
+                    if (loanData.id) await deleteDoc(doc(db, colName, loanData.id));
                 } else {
+                    // Create a copy to save, excluding emi_schedule (saved separately)
+                    const dataToSave = { ...loanData };
+                    delete dataToSave.emi_schedule;
+
                     if (loanData.id) {
-                        await setDoc(doc(db, "loans", loanData.id), loanData);
+                        await setDoc(doc(db, colName, loanData.id), dataToSave);
                     } else {
-                        const docRef = await addDoc(collection(db, "loans"), loanData);
+                        const docRef = await addDoc(collection(db, colName), dataToSave);
                         loanData.id = docRef.id;
+                        loanData.firestoreCollection = colName;
                         localStorage.setItem('loans', JSON.stringify(loans)); // Update local with ID
                     }
                 }
             } catch (e) { console.error("Firestore Error:", e); }
         }
     };
+    // Expose saveLoans globally
+    window.saveLoans = saveLoans;
+
+    // --- SAVE EMI SCHEDULE (New Function) ---
+    const saveEmiSchedule = async (loanId, scheduleData) => {
+        // Update local memory
+        const loanIdx = loans.findIndex(l => l.id === loanId);
+        if (loanIdx > -1) {
+            loans[loanIdx].emi_schedule = scheduleData;
+            localStorage.setItem('loans', JSON.stringify(loans));
+        }
+
+        // Save to Firestore
+        if (db && firestoreOps.setDoc) {
+            try {
+                await firestoreOps.setDoc(firestoreOps.doc(db, "emi_schedule", loanId), scheduleData);
+            } catch (e) { console.error("Error saving schedule:", e); }
+        }
+    };
+    window.saveEmiSchedule = saveEmiSchedule;
 
     // Helper to calculate next due date (Starts 1 month after Issue Date)
     const getNextDueDate = (loan) => {
         if (!loan.dueDate) return null;
         const issueDate = new Date(loan.dueDate);
         const tenure = parseInt(loan.tenure) || 1;
+        
+        // Check emi_schedule first
+        if (loan.emi_schedule) {
+            for (let i = 1; i <= tenure; i++) {
+                const entry = loan.emi_schedule[i] || loan.emi_schedule[i.toString()];
+                if (!entry || entry.status !== 'Paid') {
+                    const nextDate = new Date(issueDate);
+                    nextDate.setMonth(issueDate.getMonth() + i);
+                    return nextDate;
+                }
+            }
+            return null; // All paid
+        }
+
+        // Legacy Fallback
         const paid = loan.paidInstallments || [];
         
         for (let i = 1; i <= tenure; i++) {
@@ -175,22 +539,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return null; // Loan fully paid or closed
     };
-
-    // --- SIDEBAR PROFILE LOGIC ---
-    const updateSidebarProfile = () => {
-        const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-        const sidebarLogo = document.getElementById('sidebar-logo');
-        const sidebarCompanyName = document.getElementById('sidebar-company-name');
-        
-        if (savedProfile.name && sidebarCompanyName) {
-            sidebarCompanyName.textContent = savedProfile.name;
-        }
-        if (savedProfile.logo && sidebarLogo) {
-            sidebarLogo.src = savedProfile.logo;
-            sidebarLogo.style.display = 'block';
-        }
-    };
-    updateSidebarProfile();
 
     // --- UPDATE HEADER USERNAME ---
     const headerUserName = document.querySelector('.user-name');
@@ -213,37 +561,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (walletLink) walletLink.style.display = 'none';
         const profileLink = document.querySelector('nav a[href="profile.html"]');
         if (profileLink) profileLink.style.display = 'none';
+
+        // Hide Wallet from Quick Actions
+        const qaWalletLink = document.querySelector('.quick-actions-list a[href="wallet.html"]');
+        if (qaWalletLink) qaWalletLink.parentElement.style.display = 'none';
     }
 
     // --- MANAGE LOANS PAGE LOGIC (index.html) ---
-    const loanTableBody = document.querySelector('#loanTable tbody');
+    const loanTableBody = document.querySelector('#loanTable body');
     const paperLoanForm = document.getElementById('paperLoanForm');
-
-    // Elements for Manage Loans Stats
-    const mlTotalBorrowersEl = document.getElementById('ml-total-borrowers');
-    const mlActiveLoansEl = document.getElementById('ml-active-loans');
-    const mlOverdueEl = document.getElementById('ml-overdue');
-    const mlClosedLoansEl = document.getElementById('ml-closed-loans');
-    const addLoanCard = document.getElementById('add-loan-card');
-
-    const updateManageLoansStats = () => {
-        if (mlTotalBorrowersEl) {
-            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim())).size;
-            const today = new Date().toISOString().split('T')[0];
-            const overdueCount = loans.filter(l => {
-                const nextDue = getNextDueDate(l);
-                return nextDue && nextDue.toISOString().split('T')[0] < today;
-            }).length;
-            const closedCount = loans.filter(l => l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)).length;
-
-            mlTotalBorrowersEl.textContent = uniqueBorrowers;
-            mlActiveLoansEl.textContent = loans.length - closedCount;
-            mlOverdueEl.textContent = overdueCount;
-            if (mlClosedLoansEl) mlClosedLoansEl.textContent = closedCount;
-        }
-    };
-    updateManageLoansStats();
-    document.addEventListener('loans-updated', updateManageLoansStats);
 
     if (loanTableBody) {
         // Function to render the table
@@ -398,6 +724,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return (el && el.src && el.src.startsWith('data:image')) ? el.src : '';
             };
 
+            const userRole = localStorage.getItem('userRole');
+            const loanStatus = userRole === 'Administrator' ? 'Active' : 'Pending';
+
             const newLoan = {
                 borrower: document.getElementById('p-borrower').value,
                 amount: document.getElementById('p-amount').value,
@@ -420,7 +749,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 purpose: document.getElementById('p-purpose').value,
                 photo: getImgSrc('preview-photo'),
                 applicantSignature: getImgSrc('preview-sign-applicant'),
-                guarantorSignature: getImgSrc('preview-sign-guarantor')
+                guarantorSignature: getImgSrc('preview-sign-guarantor'),
+                status: loanStatus
             };
 
             let message = '';
@@ -439,7 +769,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 loans.push(newLoan);
                 await saveLoans(newLoan);
-                message = `Loan Application Saved Successfully!<br>Generated Reference No: <strong>${refNo}</strong>`;
+                if (loanStatus === 'Pending') {
+                    message = `Application Submitted for Approval!<br>Ref No: <strong>${refNo}</strong>`;
+                } else {
+                    message = `Loan Disbursed Successfully!<br>Ref No: <strong>${refNo}</strong>`;
+                }
             }
             
             const successPopup = document.getElementById('success-popup');
@@ -540,6 +874,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DASHBOARD PAGE LOGIC (dashboard.html) ---
     const activeLoansEl = document.getElementById('stat-active-loans');
+    const pendingAppsEl = document.getElementById('stat-pending-applications');
 
     if (activeLoansEl) {
         const closedLoansEl = document.getElementById('stat-closed-loans');
@@ -554,9 +889,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const renderDashboard = () => {
             // Calculate Stats
-            const uniqueBorrowers = new Set(loans.map(l => l.borrower.trim())).size;
-            const today = new Date().toISOString().split('T')[0];
-            const closedCount = loans.filter(l => l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)).length;
+            const closedCount = loans.filter(l => getNextDueDate(l) === null).length;
+            const pendingCount = loans.filter(l => l.status === 'Pending').length;
+            const activeLoans = loans.filter(l => l.status !== 'Pending' && getNextDueDate(l) !== null);
+            const uniqueBorrowers = new Set(loans.map(l => (l.borrower || '').trim()).filter(b => b)).size;
             
             // Calculate Total Interest Earned (Projected)
             const totalInterest = loans.reduce((sum, loan) => {
@@ -577,8 +913,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = new Date(loan.dueDate);
+                const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
 
+                if (loan.emi_schedule) {
+                    Object.values(loan.emi_schedule).forEach(entry => {
+                        if (entry.date) {
+                            const payDate = new Date(entry.date);
+                            if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
+                                monthlyRevenue += parseFloat(entry.amountPaid || 0);
+                            }
+                        }
+                    });
+                } else {
+                    // Legacy Logic
                 if (loan.paidInstallments) {
                     loan.paidInstallments.forEach(inst => {
                         const instDate = new Date(issueDate);
@@ -598,6 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+                }
             });
 
             // Calculate Financial Overview Metrics
@@ -613,11 +961,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = new Date(loan.dueDate);
+                const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
                 
                 // 1. Disbursed & Interest (Filter by Issue Date)
                 let includeLoan = true;
-                if (filterDate) {
+                if (filterDate && loan.dueDate) {
                     const loanMonth = issueDate.toISOString().slice(0, 7);
                     if (loanMonth !== filterDate) includeLoan = false;
                 }
@@ -628,6 +976,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // 2. Repaid (Filter by Payment Date)
+                if (loan.emi_schedule) {
+                    Object.values(loan.emi_schedule).forEach(entry => {
+                        if (entry.date) {
+                            const payDate = new Date(entry.date);
+                            let includePayment = true;
+                            if (filterDate) {
+                                const payMonth = payDate.toISOString().slice(0, 7);
+                                if (payMonth !== filterDate) includePayment = false;
+                            }
+                            if (includePayment) totalRepaid += parseFloat(entry.amountPaid || 0);
+                        }
+                    });
+                } else {
+                    // Legacy Logic
                 if (loan.paidInstallments) {
                     loan.paidInstallments.forEach(inst => {
                         // Determine payment date (use actual if available, else scheduled)
@@ -663,6 +1025,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (includePayment) totalRepaid += parseFloat(amount);
                     });
                 }
+                }
             });
 
             // Determine Row 3 Metric (Outstanding vs Net Flow)
@@ -683,7 +1046,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Update DOM
-            activeLoansEl.textContent = loans.length - closedCount;
+            activeLoansEl.textContent = activeLoans.length;
+            if (pendingAppsEl) pendingAppsEl.textContent = pendingCount;
             if (closedLoansEl) closedLoansEl.textContent = closedCount;
             if (totalBorrowersEl) totalBorrowersEl.textContent = uniqueBorrowers;
             if (monthlyRevenueEl) monthlyRevenueEl.textContent = '₹' + monthlyRevenue.toFixed(2);
@@ -708,7 +1072,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             // Update DOM with Animation
-            animateValue(activeLoansEl, 0, loans.length - closedCount, 1500, false);
+            animateValue(activeLoansEl, 0, activeLoans.length, 1500, false);
+            if (pendingAppsEl) animateValue(pendingAppsEl, 0, pendingCount, 1500, false);
             if (closedLoansEl) animateValue(closedLoansEl, 0, closedCount, 1500, false);
             if (totalBorrowersEl) animateValue(totalBorrowersEl, 0, uniqueBorrowers, 1500, false);
             if (monthlyRevenueEl) animateValue(monthlyRevenueEl, 0, monthlyRevenue, 1500, true);
@@ -764,9 +1129,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 loanChart = new Chart(chartCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Active Loans', 'Closed Loans'],   //to sho
+                        labels: ['Active Loans', 'Closed Loans'],   //to show details of Loan Status Distribution graph 
                         datasets: [{
-                            data: [loans.length - closedCount, closedCount],
+                            data: [activeLoans.length, closedCount],
                             backgroundColor: ['#3498db', '#e74c3c'],
                             borderWidth: 0
                         }]
@@ -801,9 +1166,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 loans.forEach(loan => {
                     // Outflow: Disbursements
-                    const issueMonth = loan.dueDate.slice(0, 7);
-                    if (cashFlow.hasOwnProperty(issueMonth)) {
-                        cashFlow[issueMonth] -= (parseFloat(loan.amount) || 0);
+                    if (loan.dueDate) {
+                        const issueMonth = loan.dueDate.slice(0, 7);
+                        if (cashFlow.hasOwnProperty(issueMonth)) {
+                            cashFlow[issueMonth] -= (parseFloat(loan.amount) || 0);
+                        }
                     }
 
                     // Inflow: Repayments
@@ -811,17 +1178,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     const R = parseFloat(loan.interest) || 0;
                     const N = parseInt(loan.tenure) || 1;
                     const emi = (P / N) + (P * (R / 100));
-                    const issueDate = new Date(loan.dueDate);
+                    const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
 
                     // Full Installments
+                    if (loan.emi_schedule) {
+                        Object.values(loan.emi_schedule).forEach(entry => {
+                            if (entry.date && entry.amountPaid) {
+                                const d = new Date(entry.date);
+                                if (!isNaN(d.getTime())) {
+                                    const payMonth = d.toISOString().slice(0, 7);
+                                    if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += parseFloat(entry.amountPaid);
+                                }
+                            }
+                        });
+                    } else {
+                        // Legacy
                     if (loan.paidInstallments) {
                         loan.paidInstallments.forEach(inst => {
                             let payDate = new Date(issueDate);
+                            if (isNaN(payDate.getTime())) return;
                             payDate.setMonth(issueDate.getMonth() + parseInt(inst));
                             if (loan.paidDates && loan.paidDates[inst]) payDate = new Date(loan.paidDates[inst]);
                             
-                            const payMonth = payDate.toISOString().slice(0, 7);
-                            if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += emi;
+                            if (!isNaN(payDate.getTime())) {
+                                const payMonth = payDate.toISOString().slice(0, 7);
+                                if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += emi;
+                            }
                         });
                     }
 
@@ -829,12 +1211,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (loan.partialPayments) {
                         Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
                             let payDate = new Date(issueDate);
+                            if (isNaN(payDate.getTime())) return;
                             payDate.setMonth(issueDate.getMonth() + parseInt(inst));
                             if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) payDate = new Date(loan.partialPaymentDates[inst]);
                             
-                            const payMonth = payDate.toISOString().slice(0, 7);
-                            if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += parseFloat(amount);
+                            if (!isNaN(payDate.getTime())) {
+                                const payMonth = payDate.toISOString().slice(0, 7);
+                                if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += parseFloat(amount);
+                            }
                         });
+                    }
                     }
                 });
 
@@ -894,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             function showBorrowerDetails(name) {
                 const modalTitle = document.getElementById('modal-borrower-name');
-                const modalTableBody = document.querySelector('#modal-loan-table tbody');
+                const modalTableBody = document.querySelector('#modal-loan-table ');
                 
                 modalTitle.textContent = name;
                 modalTableBody.innerHTML = '';
@@ -929,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Edit/Save Event Listener
-            const modalTableBody = document.querySelector('#modal-loan-table tbody');
+            const modalTableBody = document.querySelector('#modal-loan-table ');
             modalTableBody.addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-loan-btn')) {
                     const btn = e.target;
@@ -1030,28 +1416,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- DEMO DATA LOGIC ---
-    const loadDemoBtn = document.getElementById('loadDemoBtn');
-    if (loadDemoBtn) {
-        loadDemoBtn.addEventListener('click', () => {
-            const demoLoans = [
-                { borrower: "Alice Johnson", amount: "5000", dueDate: "2025-06-15", tenure: "12", interest: "10" },
-                { borrower: "Bob Smith", amount: "1200", dueDate: "2025-07-20", tenure: "6", interest: "12" },
-                { borrower: "Charlie Brown", amount: "350", dueDate: "2024-12-01", tenure: "3", interest: "5" }, // Past date
-                { borrower: "Diana Prince", amount: "10000", dueDate: "2025-08-10", tenure: "24", interest: "8" },
-                { borrower: "Evan Wright", amount: "2500", dueDate: "2025-05-05", tenure: "12", interest: "10" },
-                { borrower: "Fiona Green", amount: "750", dueDate: "2025-09-12", tenure: "6", interest: "15" }
-            ];
-            
-            demoLoans.forEach(l => {
-                loans.push(l);
-                saveLoans(l);
-            });
-            alert('Demo borrowers and loans loaded successfully!');
-            window.location.reload();
-        });
-    }
-
     // --- ACTIVE LOANS PAGE LOGIC (active-loans.html) ---
     const fullActiveLoansTable = document.getElementById('full-active-loans-table');
     if (fullActiveLoansTable) {
@@ -1065,7 +1429,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
             // Filter out closed loans
             let activeLoansList = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
-                                         .filter(l => !(l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1)));
+                                         .filter(l => getNextDueDate(l) !== null);
 
             if (query) {
                 activeLoansList = activeLoansList.filter(l => 
@@ -1080,6 +1444,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeLoansList.forEach((loan) => {
                     const index = loan.originalIndex;
                     const row = document.createElement('tr');
+                    
+                    // Calculate EMI for reminder
+                    const P = parseFloat(loan.amount) || 0;
+                    const R = parseFloat(loan.interest) || 0;
+                    const N = parseInt(loan.tenure) || 1;
+                    const emi = (P / N) + (P * (R / 100));
+
                     const nextDue = getNextDueDate(loan);
                     const nextDueISO = nextDue ? nextDue.toISOString().split('T')[0] : null;
                     const nextDueDisplay = nextDue ? formatDate(nextDue) : 'N/A';
@@ -1097,7 +1468,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>
                             <a href="loan-profile.html?id=${index}" target="_blank" style="background-color: #3498db; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-size: 12px;">View Profile</a>
                             <button class="btn btn-sm btn-dark open-profile-modal" data-index="${index}" style="margin-left: 5px;">Loan Profile</button>
-                            <button class="btn btn-sm btn-success whatsapp-reminder-btn" data-mobile="${loan.mobile}" data-name="${loan.borrower}" data-amount="${loan.amount}" data-next-due="${nextDueDisplay}" style="margin-left: 5px;" title="Send WhatsApp Reminder"><i class="bi bi-whatsapp"></i></button>
+                            <button class="btn btn-sm btn-success whatsapp-reminder-btn" data-mobile="${loan.mobile}" data-name="${loan.borrower}" data-amount="${loan.amount}" data-emi="${emi.toFixed(2)}" data-next-due="${nextDueDisplay}" style="margin-left: 5px;" title="Send WhatsApp Reminder"><i class="bi bi-whatsapp"></i></button>
                         </td>
                     `;
                     tbody.appendChild(row);
@@ -1124,9 +1495,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = btn.getAttribute('data-name');
                 const amount = btn.getAttribute('data-amount');
                 const nextDue = btn.getAttribute('data-next-due');
+                const emi = btn.getAttribute('data-emi');
 
                 if (mobile && mobile !== 'N/A') {
-                    const message = `Hello ${name}, gentle reminder regarding your active loan of ₹${parseFloat(amount).toFixed(2)}. Next due date: ${nextDue}.`;
+                    const message = `Hello ${name}, gentle reminder regarding your active loan of ₹${parseFloat(amount).toFixed(2)}. Due Amount: ₹${emi}. Next due date: ${nextDue}.`;
                     window.open(`https://wa.me/${mobile}?text=${encodeURIComponent(message)}`, '_blank');
                 } else {
                     alert('No mobile number available for this borrower.');
@@ -1148,12 +1520,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const emi = (P / N) + (P * (R / 100));
             
             let totalPaid = loan.paidInstallments.length * emi;
+            
+            // Calculate Total Paid from emi_schedule if available
+            if (loan.emi_schedule) {
+                totalPaid = Object.values(loan.emi_schedule).reduce((sum, entry) => sum + parseFloat(entry.amountPaid || 0), 0);
+            } else {
             if (loan.partialPayments) {
                 Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
                     if (!loan.paidInstallments.includes(parseInt(inst))) {
                         totalPaid += parseFloat(amount);
                     }
                 });
+            }
             }
 
             // Calculate Penalties
@@ -1216,10 +1594,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     settleBtn.onclick = () => {
                         if (confirm(`Settle Loan?\n\nOutstanding Amount: ₹${outstanding.toFixed(2)}\n\nThis will mark all remaining installments as PAID.`)) {
                             loan.paidInstallments = [];
+                            if (!loan.emi_schedule) loan.emi_schedule = {};
                             for (let i = 1; i <= N; i++) {
-                                loan.paidInstallments.push(i);
+                                // Mark all as paid in emi_schedule
+                                if (!loan.emi_schedule[i] || loan.emi_schedule[i].status !== 'Paid') {
+                                    loan.emi_schedule[i] = { status: 'Paid', amountPaid: emi, date: new Date().toISOString() };
+                                }
                             }
-                            saveLoans(loan);
+                            saveEmiSchedule(loan.id, loan.emi_schedule);
                             openLoanProfileModal(index); // Refresh Modal
                         }
                     };
@@ -1257,8 +1639,19 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let i = 1; i <= N; i++) {
                 const dueDate = new Date(issueDate);
                 dueDate.setMonth(issueDate.getMonth() + i);
-                const isPaid = loan.paidInstallments.includes(i);
-                const partialAmount = (loan.partialPayments && loan.partialPayments[i]) ? loan.partialPayments[i] : 0;
+                
+                let isPaid = false;
+                let partialAmount = 0;
+
+                if (loan.emi_schedule && loan.emi_schedule[i]) {
+                    isPaid = loan.emi_schedule[i].status === 'Paid';
+                    partialAmount = parseFloat(loan.emi_schedule[i].amountPaid || 0);
+                    if (isPaid) partialAmount = 0; // Don't show partial if fully paid visually in calculation logic below
+                } else {
+                    isPaid = loan.paidInstallments.includes(i);
+                    partialAmount = (loan.partialPayments && loan.partialPayments[i]) ? loan.partialPayments[i] : 0;
+                }
+
                 const remaining = emi - partialAmount;
                 
                 const item = document.createElement('div');
@@ -1289,16 +1682,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lIdx = e.target.getAttribute('data-loan-index');
                     const inst = parseInt(e.target.getAttribute('data-installment'));
                     if (confirm('Confirm full payment?')) {
-                        loans[lIdx].paidInstallments.push(inst);
-                        if (!loans[lIdx].paidDates) loans[lIdx].paidDates = {};
-                        const payDate = new Date();
-                        loans[lIdx].paidDates[inst] = payDate.toISOString();
+                        if (!loans[lIdx].emi_schedule) loans[lIdx].emi_schedule = {};
                         
-                        // Clear partial payments for this installment if any
-                        if (loans[lIdx].partialPayments && loans[lIdx].partialPayments[inst]) {
-                            delete loans[lIdx].partialPayments[inst];
-                        }
-                        saveLoans(loans[lIdx]);
+                        loans[lIdx].emi_schedule[inst] = {
+                            status: 'Paid',
+                            amountPaid: emi,
+                            date: new Date().toISOString()
+                        };
+                        
+                        saveEmiSchedule(loans[lIdx].id, loans[lIdx].emi_schedule);
 
                         // WhatsApp Receipt
                         if (loans[lIdx].mobile && loans[lIdx].mobile !== 'N/A') {
@@ -1317,12 +1709,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (amountStr) {
                         const amount = parseFloat(amountStr);
                         if (!isNaN(amount) && amount > 0) {
-                            if (!loans[lIdx].partialPayments) loans[lIdx].partialPayments = {};
-                            const current = loans[lIdx].partialPayments[inst] || 0;
-                            loans[lIdx].partialPayments[inst] = current + amount;
-                            if (!loans[lIdx].partialPaymentDates) loans[lIdx].partialPaymentDates = {};
-                            loans[lIdx].partialPaymentDates[inst] = new Date().toISOString();
-                            saveLoans(loans[lIdx]);
+                            if (!loans[lIdx].emi_schedule) loans[lIdx].emi_schedule = {};
+                            const current = (loans[lIdx].emi_schedule[inst] && loans[lIdx].emi_schedule[inst].amountPaid) ? parseFloat(loans[lIdx].emi_schedule[inst].amountPaid) : 0;
+                            loans[lIdx].emi_schedule[inst] = {
+                                status: 'Partial',
+                                amountPaid: current + amount,
+                                date: new Date().toISOString()
+                            };
+                            saveEmiSchedule(loans[lIdx].id, loans[lIdx].emi_schedule);
                             openLoanProfileModal(lIdx);
                         } else {
                             alert("Invalid amount entered.");
@@ -1347,6 +1741,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     desc: 'Total Repayable Amount'
                 });
 
+                if (loan.emi_schedule) {
+                    Object.entries(loan.emi_schedule).forEach(([inst, entry]) => {
+                        transactions.push({
+                            date: new Date(issueDate.setMonth(new Date(loan.dueDate).getMonth() + parseInt(inst))), // Approximate due date logic
+                            paidDate: entry.date ? new Date(entry.date) : null,
+                            type: entry.status === 'Paid' ? 'EMI Payment' : 'Partial Payment',
+                            amount: parseFloat(entry.amountPaid || 0),
+                            isPayment: true,
+                            desc: entry.status === 'Paid' ? `Installment #${inst}` : `Part Payment #${inst}`,
+                            inst: inst,
+                            isPartial: entry.status !== 'Paid',
+                            source: 'emi_schedule'
+                        });
+                    });
+                } else {
+                    // Legacy
                 // 2. Full EMI Payments
                 loan.paidInstallments.forEach(inst => {
                     const d = new Date(issueDate);
@@ -1364,7 +1774,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         isPayment: true,
                         desc: `Installment #${inst}`,
                         inst: inst,
-                        isPartial: false
+                        isPartial: false,
+                        source: 'legacy_full'
                     });
                 });
 
@@ -1387,22 +1798,26 @@ document.addEventListener('DOMContentLoaded', () => {
                                 isPayment: true,
                                 desc: `Part Payment #${inst}`,
                                 inst: inst,
-                                isPartial: true
+                                isPartial: true,
+                                source: 'legacy_partial'
                             });
                         }
                     });
                 }
+                }
 
                 // 4. Penalties
                 if (loan.penalties) {
-                    loan.penalties.forEach(p => {
+                    loan.penalties.forEach((p, idx) => {
                         transactions.push({
                             date: new Date(p.date),
                             paidDate: null,
                             type: 'Penalty',
                             amount: parseFloat(p.amount),
                             isPayment: false,
-                            desc: p.description || 'Late Fee'
+                            desc: p.description || 'Late Fee',
+                            source: 'penalty',
+                            penaltyIndex: idx
                         });
                     });
                 }
@@ -1434,12 +1849,52 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                         <td class="${t.isPayment ? 'text-success' : ''}">${t.isPayment ? '-' : ''}₹${t.amount.toFixed(2)}</td>
                         <td class="fw-bold">₹${Math.max(0, runningBal).toFixed(2)}</td>
+                        <td class="text-center">
+                            ${t.type !== 'Loan Disbursed' ? 
+                                `<button class="btn btn-sm btn-outline-danger delete-trans-btn" 
+                                    data-source="${t.source || ''}" 
+                                    data-inst="${t.inst || ''}" 
+                                    data-index="${t.penaltyIndex !== undefined ? t.penaltyIndex : ''}" 
+                                    title="Delete Transaction">
+                                    <i class="bi bi-trash"></i>
+                                </button>` 
+                                : ''}
+                        </td>
                     `;
                     transBody.appendChild(row);
                 });
 
-                // Handle Date Edit Click
+                // Handle Date Edit & Delete Click
                 transBody.onclick = (e) => {
+                    // Delete Logic
+                    const delBtn = e.target.closest('.delete-trans-btn');
+                    if (delBtn) {
+                        if (!confirm('Are you sure you want to delete this transaction?')) return;
+                        
+                        const source = delBtn.getAttribute('data-source');
+                        const inst = delBtn.getAttribute('data-inst');
+                        const index = delBtn.getAttribute('data-index');
+
+                        if (source === 'emi_schedule') {
+                            if (loan.emi_schedule && loan.emi_schedule[inst]) {
+                                delete loan.emi_schedule[inst];
+                                saveEmiSchedule(loan.id, loan.emi_schedule);
+                            }
+                        } else if (source === 'legacy_full') {
+                            if (loan.paidInstallments) loan.paidInstallments = loan.paidInstallments.filter(i => i != inst);
+                            if (loan.paidDates) delete loan.paidDates[inst];
+                        } else if (source === 'legacy_partial') {
+                            if (loan.partialPayments) delete loan.partialPayments[inst];
+                            if (loan.partialPaymentDates) delete loan.partialPaymentDates[inst];
+                        } else if (source === 'penalty') {
+                            if (loan.penalties) loan.penalties.splice(index, 1);
+                        }
+
+                        if (source !== 'emi_schedule') saveLoans(loans[index]);
+                        openLoanProfileModal(index);
+                        return;
+                    }
+
                     if (e.target.classList.contains('edit-trans-date')) {
                         const inst = e.target.getAttribute('data-inst');
                         const isPartial = e.target.getAttribute('data-partial') === 'true';
@@ -1448,14 +1903,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (newDateStr) {
                             const newDate = new Date(newDateStr);
                             if (!isNaN(newDate.getTime())) {
-                                if (isPartial) {
-                                    if (!loan.partialPaymentDates) loan.partialPaymentDates = {};
-                                    loan.partialPaymentDates[inst] = newDate.toISOString();
+                                if (loan.emi_schedule && loan.emi_schedule[inst]) {
+                                    loan.emi_schedule[inst].date = newDate.toISOString();
+                                    saveEmiSchedule(loan.id, loan.emi_schedule);
                                 } else {
-                                    if (!loan.paidDates) loan.paidDates = {};
-                                    loan.paidDates[inst] = newDate.toISOString();
+                                    // Legacy fallback
+                                    if (!loan.paidDates) loan.paidDates = {}; loan.paidDates[inst] = newDate.toISOString();
+                                    saveLoans(loans[index]);
                                 }
-                                saveLoans(loans[index]);
                                 openLoanProfileModal(index);
                             } else {
                                 alert("Invalid date format.");
@@ -1479,7 +1934,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p style="margin: 5px 0; color: #7f8c8d;">${loan.borrower}</p>
                         </div>
                         <table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: sans-serif;">
-                            <thead>
+                            <thread>
                                 <tr style="background-color: #f8f9fa;">
                                     <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Due Date</th>
                                     <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Paid Date</th>
@@ -1487,8 +1942,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Amount</th>
                                     <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Balance</th>
                                 </tr>
-                            </thead>
-                            <tbody>
+                            </thread>
+                            <>
                                 ${Array.from(transBody.rows).map(row => {
                                     const cells = row.cells;
                                     return `
@@ -1501,7 +1956,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </tr>
                                     `;
                                 }).join('')}
-                            </tbody>
+                            </>
                         </table>
                         <div style="margin-top: 20px; font-size: 10px; text-align: right; color: #999;">
                             Generated on ${formatDate(new Date())}
@@ -1641,7 +2096,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loans.forEach((loan, index) => {
                 const name = loan.borrower.trim();
                 // A loan is closed if paid installments >= tenure. Otherwise it's active/pending.
-                const isClosed = (loan.paidInstallments && loan.paidInstallments.length >= (parseInt(loan.tenure) || 1));
+                const isClosed = getNextDueDate(loan) === null;
 
                 if (!borrowerStats[name]) {
                     borrowerStats[name] = { 
@@ -1758,7 +2213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const borrowerStats = {};
                 loans.forEach((loan, index) => {
                     const name = loan.borrower.trim();
-                    const isClosed = (loan.paidInstallments && loan.paidInstallments.length >= (parseInt(loan.tenure) || 1));
+                    const isClosed = getNextDueDate(loan) === null;
 
                     if (!borrowerStats[name]) {
                         borrowerStats[name] = { count: 0, total: 0, mobile: loan.mobile || 'N/A', hasActive: false, lastDate: loan.dueDate, refNos: [] };
@@ -1906,7 +2361,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tbody = closedLoansTable.querySelector('tbody');
             tbody.innerHTML = '';
             
-            const closedLoans = loans.filter(l => l.paidInstallments && l.paidInstallments.length >= (parseInt(l.tenure) || 1));
+            const closedLoans = loans.filter(l => getNextDueDate(l) === null);
 
             if (closedLoans.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #777;">No closed loans found</td></tr>';
@@ -1991,7 +2446,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const emi = (P / N) + (P * (R / 100));
             
             // Render Summary
-            const totalPaid = loan.paidInstallments.length * emi;
+            let totalPaid = 0;
+            if (loan.emi_schedule) {
+                totalPaid = Object.values(loan.emi_schedule).reduce((sum, entry) => sum + parseFloat(entry.amountPaid || 0), 0);
+            } else {
+                totalPaid = loan.paidInstallments.length * emi;
+            }
             const totalDue = (emi * N) - totalPaid;
 
             paymentInfo.innerHTML = `
@@ -2012,7 +2472,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dueDate = new Date(issueDate);
                 dueDate.setMonth(issueDate.getMonth() + i);
                 
-                const isPaid = loan.paidInstallments.includes(i);
+                let isPaid = false;
+                if (loan.emi_schedule && loan.emi_schedule[i]) {
+                    isPaid = loan.emi_schedule[i].status === 'Paid';
+                } else {
+                    isPaid = loan.paidInstallments.includes(i);
+                }
                 const row = document.createElement('tr');
                 
                 row.innerHTML = `
@@ -2035,7 +2500,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (e.target.classList.contains('mark-paid-btn')) {
                     const installmentNo = parseInt(e.target.getAttribute('data-installment'));
                     if (confirm(`Mark installment #${installmentNo} as PAID?`)) {
-                        loan.paidInstallments.push(installmentNo);
+                        if (!loan.emi_schedule) loan.emi_schedule = {};
+                        loan.emi_schedule[installmentNo] = {
+                            status: 'Paid',
+                            amountPaid: emi,
+                            date: new Date().toISOString()
+                        };
                         loans[loanIndex] = loan; // Update specific loan
                         saveLoans(loan);
 
@@ -2076,17 +2546,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const tenure = parseInt(document.getElementById('calc-tenure').value) || 0;
 
             if (amount > 0 && tenure > 0) {
-                // OPTION 1: Flat Rate (Current App Logic)
-                // const emi = (amount / tenure) + (amount * (interest / 100));
-
-                // OPTION 2: Standard Reducing Balance EMI
-                // Assuming 'interest' input is Monthly Interest Rate %
-                const r = interest / 100;
-                // Formula: E = P * r * (1+r)^n / ((1+r)^n - 1)
-                const emi = (amount * r * Math.pow(1 + r, tenure)) / (Math.pow(1 + r, tenure) - 1);
-
-                const totalPayment = emi * tenure;
-                const totalInterest = totalPayment - amount;
+                // Simple Interest Calculation (Monthly)
+                // Interest is calculated monthly: totalInterest = principal * (rate/100) * tenure
+                const totalInterest = amount * (interest / 100) * tenure;
+                const totalPayment = amount + totalInterest;
+                const emi = totalPayment / tenure;
 
                 document.getElementById('res-emi').textContent = '₹' + emi.toFixed(2);
                 document.getElementById('res-interest').textContent = '₹' + totalInterest.toFixed(2);
@@ -2115,10 +2579,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationList = document.getElementById('notification-list');
     const notificationCount = document.getElementById('notification-count');
 
+    // --- QUICK ACTIONS LOGIC ---
+    const quickActionsBtn = document.getElementById('quick-actions-btn');
+    const quickActionsDropdown = document.getElementById('quick-actions-dropdown');
+
+    if (quickActionsBtn && quickActionsDropdown) {
+        quickActionsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (notificationDropdown) notificationDropdown.classList.remove('show');
+            quickActionsDropdown.classList.toggle('show');
+        });
+    }
+
     if (notificationBtn && notificationDropdown) {
         // Toggle Dropdown
         notificationBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (quickActionsDropdown) quickActionsDropdown.classList.remove('show');
             notificationDropdown.classList.toggle('show');
         });
 
@@ -2126,6 +2603,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('click', () => {
             if (notificationDropdown.classList.contains('show')) {
                 notificationDropdown.classList.remove('show');
+            }
+            if (quickActionsDropdown && quickActionsDropdown.classList.contains('show')) {
+                quickActionsDropdown.classList.remove('show');
             }
         });
 
@@ -2227,35 +2707,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- SIDEBAR TOGGLE LOGIC ---
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    const sidebar = document.querySelector('.sidebar');
-    
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-        });
-    }
+    // --- AUTO LOGOUT LOGIC (30 MIN INACTIVITY) ---
+    if (localStorage.getItem('isLoggedIn') === 'true') {
+        const inactivityLimit = 30 * 60 * 1000; // 30 Minutes
+        let inactivityTimer;
 
-    const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn');
-    if (sidebarCollapseBtn && sidebar) {
-        sidebarCollapseBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-        });
-    }
+        const performAutoLogout = () => {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('userRole');
+            alert('You have been logged out due to inactivity.');
+            window.location.href = 'login.html';
+        };
 
-    // --- LOGOUT LOGIC ---
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (confirm('Are you sure you want to logout?')) {
-                localStorage.removeItem('isLoggedIn');
-                localStorage.removeItem('currentUser');
-                alert('You have been logged out successfully.');
-                window.location.href = 'login.html';
-            }
+        const resetInactivityTimer = () => {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(performAutoLogout, inactivityLimit);
+        };
+
+        // Listen for user activity to reset timer
+        ['mouseover', 'click', 'keypress', 'scroll', 'touch start'].forEach(event => {
+            document.addEventListener(event, resetInactivityTimer);
         });
+
+        resetInactivityTimer(); // Start timer
     }
 
     // --- FORMS REPOSITORY LOGIC (forms.html) ---

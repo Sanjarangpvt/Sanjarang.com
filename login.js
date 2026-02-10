@@ -2,8 +2,13 @@ import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "htt
 import { getFirestore, doc, writeBatch, collection, query, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { app } from "./firebase-config.js";
 
-const auth = getAuth(app);
-const db = getFirestore(app);
+let auth, db;
+try {
+    auth = getAuth(app);
+    db = getFirestore(app);
+} catch (e) {
+    console.error("Firebase Initialization Failed. Check firebase-config.js:", e);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- TOGGLE LOGIN TYPE ---
@@ -43,10 +48,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+
+            if (!auth) {
+                alert("System Error: Firebase is not initialized. Please check the console (F12) for details.");
+                return;
+            }
+
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const errorMsg = document.getElementById('error-message');
             const card = document.querySelector('.login-card');
+            
+            // Basic validation
+            if (!username || !password) {
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'Please enter both email and password';
+                return;
+            }
+
+            // Check network connectivity
+            if (!navigator.onLine) {
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'No internet connection. Please check your network.';
+                return;
+            }
             
             // Set Loading State
             const btn = document.querySelector('.login-btn');
@@ -57,31 +82,58 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMsg.style.display = 'none';
 
             const handleLoginSuccess = async (userEmail, role) => {
+                console.log("Login successful, processing user data...");
                 localStorage.setItem('isLoggedIn', 'true');
                 localStorage.setItem('currentUser', userEmail);
                 localStorage.setItem('userRole', role);
                 localStorage.setItem('showWelcomeToast', 'true');
 
-                btn.innerHTML = '<div class="spinner"></div> Syncing Data...';
-
-                // --- AUTO BACKUP LOGIC (Only for Admins usually, but keeping for now) ---
+                // Start background sync (non-blocking)
                 if (role === 'Administrator') {
-                    try {
-                        const loans = JSON.parse(localStorage.getItem('loans')) || [];
-                        const employees = JSON.parse(localStorage.getItem('employees')) || [];
-                        const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
-                        const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
-                        const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-                        const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+                    syncDataInBackground();
+                }
 
-                        const batchSize = 450;
-                        let batches = [];
-                        let currentBatch = writeBatch(db);
-                        let operationCount = 0;
+                // Always redirect immediately
+                console.log("Redirecting to dashboard...");
+                if (role === 'Administrator') {
+                    window.location.href = 'dashboard.html';
+                } else {
+                    window.location.href = 'Employee-dashboard.html';
+                }
+            };
 
-                        const sanitize = (obj) => JSON.parse(JSON.stringify(obj));
+            // Background sync function (doesn't block login)
+            const syncDataInBackground = async () => {
+                try {
+                    console.log("Starting background data sync...");
+                    const loans = JSON.parse(localStorage.getItem('loans')) || [];
+                    const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                    const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+                    const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
+                    const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+                    const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
 
-                        const addToBatch = (ref, data) => {
+                    if (loans.length === 0 && employees.length === 0 && expenses.length === 0 && walletTransactions.length === 0) {
+                        console.log("No local data to sync");
+                        return;
+                    }
+
+                    const batchSize = 450;
+                    let batches = [];
+                    let currentBatch = writeBatch(db);
+                    let operationCount = 0;
+
+                    const sanitize = (obj) => {
+                        try {
+                            return JSON.parse(JSON.stringify(obj));
+                        } catch (e) {
+                            console.warn("Failed to sanitize object:", e);
+                            return {};
+                        }
+                    };
+
+                    const addToBatch = (ref, data) => {
+                        try {
                             currentBatch.set(ref, data);
                             operationCount++;
                             if (operationCount >= batchSize) {
@@ -89,62 +141,98 @@ document.addEventListener('DOMContentLoaded', () => {
                                 currentBatch = writeBatch(db);
                                 operationCount = 0;
                             }
-                        };
+                        } catch (e) {
+                            console.error("Failed to add to batch:", e);
+                        }
+                    };
 
-                        loans.forEach((loan, index) => {
+                    // Process all data types
+                    loans.forEach((loan, index) => {
+                        try {
                             const loanId = loan.id || `loan_${Date.now()}_${index}`;
                             const loanRef = doc(db, "loans", loanId);
                             addToBatch(loanRef, sanitize(loan));
-                        });
+                        } catch (e) {
+                            console.error("Error processing loan:", e);
+                        }
+                    });
 
-                        employees.forEach((emp, index) => {
+                    employees.forEach((emp, index) => {
+                        try {
                             const empId = emp.id || `emp_${Date.now()}_${index}`;
                             const empRef = doc(db, "employees", empId);
                             addToBatch(empRef, sanitize(emp));
-                        });
+                        } catch (e) {
+                            console.error("Error processing employee:", e);
+                        }
+                    });
 
-                        expenses.forEach((exp, index) => {
+                    expenses.forEach((exp, index) => {
+                        try {
                             const expId = exp.id || `exp_${Date.now()}_${index}`;
                             const expRef = doc(db, "expenses", expId);
                             addToBatch(expRef, sanitize(exp));
-                        });
+                        } catch (e) {
+                            console.error("Error processing expense:", e);
+                        }
+                    });
 
-                        walletTransactions.forEach((trans, index) => {
+                    walletTransactions.forEach((trans, index) => {
+                        try {
                             const transId = trans.id || `trans_${Date.now()}_${index}`;
                             const transRef = doc(db, "wallet_transactions", transId);
                             addToBatch(transRef, sanitize(trans));
-                        });
+                        } catch (e) {
+                            console.error("Error processing transaction:", e);
+                        }
+                    });
 
-                        admins.forEach((admin, index) => {
+                    admins.forEach((admin, index) => {
+                        try {
                             const adminRef = doc(db, "admin_users", admin.username);
                             addToBatch(adminRef, sanitize(admin));
-                        });
+                        } catch (e) {
+                            console.error("Error processing admin:", e);
+                        }
+                    });
 
-                        const profileRef = doc(db, "settings", "companyProfile");
-                        addToBatch(profileRef, sanitize(profile));
+                    const profileRef = doc(db, "settings", "companyProfile");
+                    addToBatch(profileRef, sanitize(profile));
 
-                        if (operationCount > 0) batches.push(currentBatch);
+                    if (operationCount > 0) batches.push(currentBatch);
 
-                        await Promise.all(batches.map(b => b.commit()));
+                    console.log(`Committing ${batches.length} batches...`);
+                    
+                    // Add timeout to prevent hanging
+                    const commitPromises = batches.map(batch => batch.commit());
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error("Sync timeout")), 15000)
+                    );
+
+                    await Promise.race([
+                        Promise.all(commitPromises),
+                        timeoutPromise
+                    ]);
+
+                    console.log("✅ Data sync completed successfully");
+
+                    // Load latest company profile
+                    try {
+                        const profileSnap = await getDoc(doc(db, "settings", "companyProfile"));
+                        if (profileSnap.exists()) {
+                            localStorage.setItem('companyProfile', JSON.stringify(profileSnap.data()));
+                            console.log("Company profile updated");
+                        }
                     } catch (e) {
-                        console.error("Auto-backup failed:", e);
+                        console.log("Could not load company profile:", e.message);
                     }
-                }
 
-                // Load Company Profile Details
-                try {
-                    const profileSnap = await getDoc(doc(db, "settings", "companyProfile"));
-                    if (profileSnap.exists()) {
-                        localStorage.setItem('companyProfile', JSON.stringify(profileSnap.data()));
+                } catch (syncError) {
+                    console.warn("⚠️ Data sync failed (non-critical):", syncError.message);
+                    // Show a toast notification if possible
+                    if (typeof showToast === 'function') {
+                        showToast('Data sync failed - working offline', 'warning');
                     }
-                } catch (e) {
-                    console.error("Failed to load company profile:", e);
-                }
-
-                if (role === 'Administrator') {
-                    window.location.href = 'dashboard.html';
-                } else {
-                    window.location.href = 'Employee-dashboard.html';
                 }
             };
 
@@ -162,21 +250,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.style.animation = 'none';
                 card.offsetHeight; /* trigger reflow */
                 card.style.animation = 'shake 0.4s ease-in-out';
+
+                // Add offline login option for testing
+                if (msg.includes('network') || msg.includes('timeout')) {
+                    setTimeout(() => {
+                        if (confirm('Network issues detected. Try offline login? (For testing only)')) {
+                            // Simple offline login for admin
+                            if (loginType === 'admin' && username === 'admin@test.com' && password === 'admin123') {
+                                handleLoginSuccess('admin@test.com', 'Administrator');
+                            } else if (loginType === 'employee') {
+                                // Check local employees
+                                const localEmployees = JSON.parse(localStorage.getItem('employees')) || [];
+                                const localEmp = localEmployees.find(e => e.email === username);
+                                if (localEmp && localEmp.password === password) {
+                                    handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff');
+                                } else {
+                                    alert('Offline login failed. Please check your credentials.');
+                                }
+                            } else {
+                                alert('Offline login failed. Please check your credentials.');
+                            }
+                        }
+                    }, 1000);
+                }
             };
 
             if (loginType === 'admin') {
                 // ADMIN LOGIN (Firebase Auth)
-                signInWithEmailAndPassword(auth, username, password)
+                console.log("Attempting admin login for:", username);
+                
+                // Add timeout to prevent hanging
+                const loginPromise = signInWithEmailAndPassword(auth, username, password);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Login timeout - check network connection")), 15000)
+                );
+
+                Promise.race([loginPromise, timeoutPromise])
                     .then((userCredential) => {
+                        console.log("Admin login successful");
                         handleLoginSuccess(userCredential.user.email, 'Administrator');
                     })
                     .catch((error) => {
-                        handleLoginError('Invalid email or password');
+                        console.error("Admin Login Error:", error);
+                        handleLoginError(error.message || 'Login failed - check network connection');
                     });
             } else {
                 // EMPLOYEE LOGIN (Firebase Auth)
-                signInWithEmailAndPassword(auth, username, password)
+                console.log("Attempting employee login for:", username);
+                
+                // Add timeout to prevent hanging
+                const loginPromise = signInWithEmailAndPassword(auth, username, password);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Login timeout - check network connection")), 15000)
+                );
+
+                Promise.race([loginPromise, timeoutPromise])
                     .then(async (userCredential) => {
+                        console.log("Employee Firebase auth successful");
                         const email = userCredential.user.email;
                         try {
                             // Try to get details from Firestore to get name/designation
@@ -190,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 handleLoginSuccess(email, 'Staff');
                             }
                         } catch (e) {
+                            console.error("Error fetching employee details:", e);
                             handleLoginSuccess(email, 'Staff');
                         }
                     })
@@ -202,11 +333,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (localEmp) {
                             if (localEmp.password === password) {
+                                console.log("Employee login successful via local storage");
                                 handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff');
                             } else {
                                 handleLoginError('Incorrect password');
                             }
                         } else {
+                            console.warn("Login Failed: User not found in Firebase or LocalStorage.");
                             handleLoginError('Invalid email or password');
                         }
                     });
