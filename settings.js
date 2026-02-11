@@ -45,6 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof renderAdmins === 'function') renderAdmins();
             });
 
+            // Sync Dashboard Message
+            onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
+                const messageInput = document.getElementById('dashboard-message');
+                if (docSnap.exists() && messageInput) {
+                    messageInput.value = docSnap.data().text || '';
+                }
+            });
+
         } catch (e) { console.error("Firestore init failed:", e); }
     };
     initFirestore();
@@ -348,148 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        });
-    }
-
-    // --- MIGRATE LEGACY DATA BUTTON ---
-    const clearDataBtnAnchor = document.getElementById('clearDataBtn');
-    if (clearDataBtnAnchor && clearDataBtnAnchor.parentNode) {
-        const container = clearDataBtnAnchor.parentNode;
-        // Check if button already exists to prevent duplicates
-        if (!document.getElementById('migrate-legacy-btn')) {
-            const migrateBtn = document.createElement('button');
-            migrateBtn.id = 'migrate-legacy-btn';
-            migrateBtn.textContent = 'Migrate Legacy Data';
-            migrateBtn.className = 'btn'; 
-            migrateBtn.style.cssText = "background-color: #8e44ad; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px; font-weight: bold; margin-bottom: 10px;";
-            
-            // Insert before Clear Data button
-            container.insertBefore(migrateBtn, clearDataBtnAnchor);
-
-            migrateBtn.addEventListener('click', async () => {
-                if (!confirm('This will convert legacy "Paid Installments" to the new "EMI Schedule" format and upload to the "emi_schedule" collection. Continue?')) return;
-
-                const loans = JSON.parse(localStorage.getItem('loans')) || [];
-                let updatedCount = 0;
-                const updates = []; // Store updates for batch write
-
-                loans.forEach(loan => {
-                    let modified = false;
-                    if (!loan.emi_schedule) loan.emi_schedule = {};
-
-                    const P = parseFloat(loan.amount) || 0;
-                    const R = parseFloat(loan.interest) || 0;
-                    const N = parseInt(loan.tenure) || 1;
-                    const emi = (P / N) + (P * (R / 100));
-                    const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
-
-                    // 1. Migrate Full Payments
-                    if (loan.paidInstallments && Array.isArray(loan.paidInstallments)) {
-                        loan.paidInstallments.forEach(inst => {
-                            if (!loan.emi_schedule[inst]) {
-                                let payDate = new Date(issueDate);
-                                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                                
-                                if (loan.paidDates && loan.paidDates[inst]) {
-                                    payDate = new Date(loan.paidDates[inst]);
-                                }
-
-                                loan.emi_schedule[inst] = {
-                                    status: 'Paid',
-                                    amountPaid: emi,
-                                    date: payDate.toISOString()
-                                };
-                                modified = true;
-                            }
-                        });
-                    }
-
-                    // 2. Migrate Partial Payments
-                    if (loan.partialPayments) {
-                        Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
-                            // Only if not fully paid
-                            if (!loan.emi_schedule[inst] || loan.emi_schedule[inst].status !== 'Paid') {
-                                let payDate = new Date(issueDate);
-                                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                                
-                                if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) {
-                                    payDate = new Date(loan.partialPaymentDates[inst]);
-                                }
-
-                                loan.emi_schedule[inst] = {
-                                    status: 'Partial',
-                                    amountPaid: parseFloat(amount),
-                                    date: payDate.toISOString()
-                                };
-                                modified = true;
-                            }
-                        });
-                    }
-
-                    if (modified) {
-                        updatedCount++;
-                        if (loan.id) {
-                            updates.push({ id: loan.id, data: loan.emi_schedule });
-                        }
-                    }
-                });
-
-                if (updatedCount > 0) {
-                    localStorage.setItem('loans', JSON.stringify(loans));
-                    
-                    // Direct Batch Write to emiSchedule Collection
-                    if (db && firestoreOps.writeBatch && updates.length > 0) {
-                        const batchSize = 450;
-                        let batches = [];
-                        let currentBatch = firestoreOps.writeBatch(db);
-                        let opCount = 0;
-                        
-                        updates.forEach(update => {
-                            const ref = firestoreOps.doc(db, "emi_schedule", update.id);
-                            currentBatch.set(ref, update.data);
-                            opCount++;
-                            if (opCount >= batchSize) {
-                                batches.push(currentBatch);
-                                currentBatch = firestoreOps.writeBatch(db);
-                                opCount = 0;
-                            }
-                        });
-                        if (opCount > 0) batches.push(currentBatch);
-                        
-                        try {
-                            await Promise.all(batches.map(b => b.commit()));
-                            alert(`Migration successful! Updated ${updatedCount} loans and synced to 'emi_schedule' collection.`);
-                        } catch (e) {
-                            console.error("Migration sync failed:", e);
-                            alert(`Local migration successful, but cloud sync failed: ${e.message}`);
-                        }
-                    } else {
-                        // Fallback to manualSync if batch not available
-                        if (typeof window.manualSync === 'function') {
-                            const status = document.getElementById('syncStatus');
-                            if (status) { status.textContent = 'Syncing changes...'; status.style.color = '#f39c12'; }
-                            await window.manualSync();
-                        }
-                        alert(`Migration successful! Updated ${updatedCount} loans locally.`);
-                    }
-                    
-                    window.location.reload();
-                } else {
-                    alert('No legacy data found needing migration.');
-                }
-            });
-        }
-    }
-
-    // 1. Data Management (Clear Data)
-    const clearDataBtn = document.getElementById('clearDataBtn');
-    if (clearDataBtn) {
-        clearDataBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to delete ALL loan data? This action cannot be undone.')) {
-                localStorage.removeItem('loans');
-                alert('All data has been cleared successfully.');
-                window.location.reload();
-            }
         });
     }
 
@@ -1057,6 +923,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (appLayout) appLayout.style.backgroundColor = '';
 
                 alert('Theme settings have been reset.');
+            }
+        });
+    }
+
+    // --- DASHBOARD MESSAGE LOGIC ---
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('dashboard-message');
+
+    if (messageInput) {
+        // Pre-fill from local storage as a fallback
+        const savedMessage = localStorage.getItem('dashboardMessage');
+        if (savedMessage) {
+            messageInput.value = savedMessage;
+        }
+        // Firestore will overwrite this if it connects successfully via the listener in initFirestore
+    }
+
+    if (messageForm) {
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            
+            if (db && firestoreOps.setDoc && firestoreOps.doc) {
+                try {
+                    await firestoreOps.setDoc(firestoreOps.doc(db, "settings", "dashboardMessage"), { text: message, updatedAt: new Date().toISOString() });
+                    alert('Message saved successfully!');
+                } catch (error) {
+                    console.error("Error saving message to Firestore:", error);
+                    alert('Failed to save message to cloud. Check console for details.');
+                }
+            } else {
+                console.warn('Firestore not available. Falling back to local storage.');
+                localStorage.setItem('dashboardMessage', message);
+                alert('Message saved locally. It may not be visible to all users.');
             }
         });
     }

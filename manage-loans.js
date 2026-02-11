@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+// Wrap all logic in a function that can be called on demand
+function initManageLoansPage() {
     // --- FIRESTORE SETUP (For Deletion) ---
     let db;
     let firestoreOps = {};
@@ -16,9 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- HELPER FUNCTIONS ---
     const getNextDueDate = (loan) => {
         if (!loan.dueDate) return null;
-        const issueDate = new Date(loan.dueDate);
+
+        let issueDate;
+        if (typeof loan.dueDate === 'object' && 'seconds' in loan.dueDate) {
+            issueDate = new Date(loan.dueDate.seconds * 1000);
+        } else {
+            issueDate = new Date(loan.dueDate);
+        }
+        if (isNaN(issueDate.getTime())) return null;
+
         const tenure = parseInt(loan.tenure) || 1;
-        
+
         // Check emi_schedule
         if (loan.emi_schedule) {
             for (let i = 1; i <= tenure; i++) {
@@ -34,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Legacy
         const paid = loan.paidInstallments || [];
-        
+
         for (let i = 1; i <= tenure; i++) {
             if (!paid.includes(i)) {
                 const nextDate = new Date(issueDate);
@@ -65,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('manage-loans-tbody');
         const searchInput = document.getElementById('loan-search-input');
         const filterSelect = document.getElementById('loan-filter-select');
-        
+
         if (!tbody) return;
         tbody.innerHTML = '';
 
@@ -76,10 +85,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Filter Loans
         const filteredLoans = loans.map((loan, index) => {
             // Determine Status
-            const isClosed = getNextDueDate(loan) === null;
             const nextDue = getNextDueDate(loan);
+            const isClosed = nextDue === null;
             const isOverdue = !isClosed && nextDue && nextDue.toISOString().split('T')[0] < today;
-            
+
             // Respect existing status (Pending/Rejected), otherwise calculate Active/Closed/Overdue
             let status = loan.status || 'Active';
             if (status === 'Active' || status === 'Overdue') {
@@ -94,15 +103,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const borrowerName = (loan.borrower || '').toLowerCase();
             const loanRef = (loan.loanRef || '').toLowerCase();
             const mobile = (loan.mobile || '').toString();
-            
-            const matchesSearch = 
-                borrowerName.includes(query) || 
+
+            const matchesSearch =
+                borrowerName.includes(query) ||
                 loanRef.includes(query) ||
                 mobile.includes(query);
-            
+
             if (!matchesSearch) return false;
 
             // Apply Filter
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+
+            if (userRole !== 'Administrator') {
+                const matchesName = (loan.assignedTo === currentUser || loan.createdBy === currentUser);
+                const matchesEmail = (loan.employeeEmail && loan.employeeEmail === currentUserEmail);
+                if (!matchesName && !matchesEmail) return false;
+            }
+
             if (filter === 'all') return loan.status !== 'Pending';
             if (filter === 'active') return loan.status === 'Active' || loan.status === 'Overdue'; // Overdue is technically active
             if (filter === 'pending') return loan.status === 'Pending';
@@ -120,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         filteredLoans.forEach(loan => {
             const row = document.createElement('tr');
             row.style.borderBottom = '1px solid #eee';
-            
+
             // Status Badge Style
             let statusColor = '#27ae60'; // Active
             if (loan.status === 'Overdue') statusColor = '#e74c3c';
@@ -150,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding: 12px 15px; text-align: center;">
                     <div style="display: flex; gap: 5px; justify-content: center;">
                         <button class="btn-action btn-profile" data-index="${loan.originalIndex}" title="Quick Profile" style="background: #3498db; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;"><i class="bi bi-person-lines-fill"></i></button>
-                        <a href="loan-profile.html?id=${loan.originalIndex}" target="_blank" class="btn-action" title="Loan Paper" style="background: #2c3e50; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; display: inline-block;"><i class="bi bi-file-earmark-text"></i></a>
+                        <a href="loan-profile.html?id=${loan.originalIndex}" target="_blank" class="btn-action" title="Profile" style="background: #2c3e50; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; display: inline-block;"><i class="bi bi-eye"></i></a>
                         <button class="btn-action btn-whatsapp" data-mobile="${loan.mobile || ''}" data-name="${loan.borrower || 'Unknown'}" data-status="${loan.status}" title="WhatsApp" style="background: #25D366; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;"><i class="bi bi-whatsapp"></i></button>
                         <button class="btn-action btn-delete" data-index="${loan.originalIndex}" title="Delete" style="background: #e74c3c; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;"><i class="bi bi-trash-fill"></i></button>
                     </div>
@@ -205,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loanToDeleteIndex !== null) {
                 const loans = JSON.parse(localStorage.getItem('loans')) || [];
                 const loanToDelete = loans[loanToDeleteIndex];
-                
+
                 // Delete from Firestore
                 if (db && firestoreOps.deleteDoc && loanToDelete.id) {
                     try {
@@ -220,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Delete from LocalStorage
                 loans.splice(loanToDeleteIndex, 1);
                 localStorage.setItem('loans', JSON.stringify(loans));
-                
+
                 // Dispatch update event for app.js to pick up
                 document.dispatchEvent(new CustomEvent('loans-updated'));
                 renderTable();
@@ -247,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mobile = target.getAttribute('data-mobile');
                 const name = target.getAttribute('data-name');
                 const status = target.getAttribute('data-status');
-                
+
                 if (mobile && mobile !== 'N/A') {
                     let msg = `Hello ${name}, regarding your loan with Sanjarang Pvt Ltd.`;
                     if (status === 'Overdue') msg += ` Your payment is overdue. Please pay immediately.`;
@@ -265,5 +284,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial Render
     renderTable();
+    // Re-render when loans data is updated elsewhere in the app
     document.addEventListener('loans-updated', renderTable);
-});
+}
+
+// This makes the function globally available
+window.initManageLoansPage = initManageLoansPage;
+
+// This ensures the page works when loaded directly
+const autoInit = () => {
+    if (!document.body.classList.contains('manage-loans-initialized')) {
+        initManageLoansPage();
+        document.body.classList.add('manage-loans-initialized');
+    }
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoInit);
+} else {
+    autoInit();
+}

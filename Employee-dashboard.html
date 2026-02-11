@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Dashboard - Loan Book</title>
-    <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="sidebar.css">
+    <link rel="stylesheet" href="employee-dashboard.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
@@ -14,6 +15,7 @@
         }
     </script>
 </head>
+
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
@@ -51,54 +53,69 @@
                             </div>
                         </div>
                         <div class="notifications-wrapper">
-                            <button id="notification-btn" class="icon-btn">🔔<span class="badge" id="notification-count">0</span></button>
+                            <button id="notification-btn" class="icon-btn">🔔<span class="badge"
+                                    id="notification-count">0</span></button>
                             <div id="notification-dropdown" class="dropdown-content">
                                 <div class="dropdown-header">Recent Alerts</div>
                                 <ul id="notification-list">
                                     <li class="no-alerts">No new notifications</li>
                                 </ul>
                             </div>
+
                         </div>
                         <div id="current-datetime"></div>
+
                     </div>
                 </div>
             </header>
             <main>
-        <!-- Stats Grid -->
-        <section class="dashboard-grid">
-            <div class="card stat-card card-blue">
-                <div class="stat-icon">📄</div>
-                <div class="stat-details">
-                    <h3>Active Loans</h3>
-                    <p class="stat-number" id="stat-active-loans">0</p>
+                <div class="message-bar">
+                    <p id="dashboard-message-text"></p>
                 </div>
-            </div>
-            <div class="card stat-card card-orange">
-                <div class="stat-icon">👥</div>
-                <div class="stat-details">
-                    <h3>Total Borrowers</h3>
-                    <p class="stat-number" id="stat-total-borrowers">0</p>
-                </div>
-            </div>
-            <a href="loan-calculator.html" class="card stat-card card-purple" style="text-decoration: none; color: inherit; cursor: pointer;">
-                <div class="stat-icon">🧮</div>
-                <div class="stat-details">
-                    <h3>Tools</h3>
-                    <p class="stat-number" style="font-size: 1.5rem;">Calculator</p>
-                </div>
-            </a>
-        </section>
+                <!-- Stats Grid -->
+                <section class="dashboard-grid">
+                    <div class="card stat-card card-blue">
+                        <div class="stat-icon">📄</div>
+                        <div class="stat-details">
+                            <h3>Active Loans</h3>
+                            <p class="stat-number" id="stat-active-loans">0</p>
+                        </div>
+                    </div>
+                    <div class="card stat-card card-orange">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-details">
+                            <h3>Total Borrowers</h3>
+                            <p class="stat-number" id="stat-total-borrowers">0</p>
+                        </div>
+                    </div>
+                    <div class="card stat-card card-green">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-details">
+                            <h3>My Applications</h3>
+                            <p class="stat-number" id="stat-my-applications">0</p>
+                        </div>
+                    </div>
+                    <a href="loan-calculator.html" class="card stat-card card-purple"
+                        style="text-decoration: none; color: inherit; cursor: pointer;">
+                        <div class="stat-icon">🧮</div>
+                        <div class="stat-details">
+                            <h3>Tools</h3>
+                            <p class="stat-number" style="font-size: 1.5rem;">Calculator</p>
+                        </div>
+                    </a>
+                </section>
 
-        <!-- Charts Row -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 2rem;">
-            <!-- Loan Status Chart -->
-            <section class="card" style="margin-bottom: 0;">
-                <h2>Loan Status Distribution</h2>
-                <div style="height: 400px;">
-                    <canvas id="loanStatusChart"></canvas>
+                <!-- Charts Row -->
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 2rem;">
+                    <!-- Loan Status Chart -->
+                    <section class="card" style="margin-bottom: 0;">
+                        <h2>Loan Status Distribution</h2>
+                        <div style="height: 400px;">
+                            <canvas id="loanStatusChart"></canvas>
+                        </div>
+                    </section>
                 </div>
-            </section>
-        </div>
             </main>
         </div>
     </div>
@@ -124,4 +141,5 @@
 
     <script src="app.js" defer></script>
 </body>
+
 </html>

@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await window.saveLoans(pendingLoan, true); // Delete
 
             // 2. Add to 'loans' as Active
-            const activeLoan = { ...loan, status: 'Active', firestoreCollection: 'loans', approvedDate: new Date().toISOString() };
+            const activeLoan = { ...loan, status: 'Active', firestoreCollection: 'loans', approvedDate: new Date().toISOString(), applicationId: loan.id };
             await window.saveLoans(activeLoan);
             alert("Loan Approved Successfully!");
         }

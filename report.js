@@ -1,9 +1,10 @@
 import { app } from './firebase-config.js';
-import { getFirestore, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, where, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 document.addEventListener('DOMContentLoaded', async () => {
     const db = getFirestore(app);
     const currentUserEmail = localStorage.getItem('currentUserEmail');
+    const userRole = localStorage.getItem('userRole');
 
     // Helper for date formatting
     const formatDate = (dateInput) => {
@@ -20,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${day}/${month}/${year}`;
     };
 
-    // Fetch Loans for Current User
+    // Fetch Loans
     const fetchLoans = async () => {
         if (!currentUserEmail) {
             console.warn("No current user email found in localStorage.");
@@ -28,13 +29,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         try {
             const loansRef = collection(db, "loans");
-            const q = query(loansRef, where("employeeEmail", "==", currentUserEmail));
+            let q;
+
+            // Allow Admin to see all loans
+            if (userRole === 'Administrator') {
+                q = query(loansRef);
+            } else {
+                q = query(loansRef, where("employeeEmail", "==", currentUserEmail));
+            }
+
             const querySnapshot = await getDocs(q);
-            const loans = [];
-            querySnapshot.forEach((doc) => {
-                loans.push({ id: doc.id, ...doc.data() });
+
+            const loanPromises = querySnapshot.docs.map(async (docSnapshot) => {
+                const loanData = { id: docSnapshot.id, ...docSnapshot.data() };
+
+                // Fetch EMI Schedule for this loan
+                try {
+                    const scheduleRef = doc(db, "emi_schedule", loanData.id);
+                    const scheduleSnap = await getDoc(scheduleRef);
+
+                    if (scheduleSnap.exists()) {
+                        loanData.emi_schedule = scheduleSnap.data();
+                    }
+                } catch (err) {
+                    console.warn(`Could not fetch schedule for loan ${loanData.id}`, err);
+                }
+
+                return loanData;
             });
+
+            const loans = await Promise.all(loanPromises);
             return loans;
+
         } catch (error) {
             console.error("Error fetching loans:", error);
             return [];
@@ -42,6 +68,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const myLoans = await fetchLoans();
+
+    // Fetch Employees Mapping
+    const fetchEmployees = async () => {
+        try {
+            const snapshot = await getDocs(collection(db, "employees"));
+            const empMap = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.email) empMap[data.email] = data.name || data.email;
+            });
+            return empMap;
+        } catch (e) {
+            console.error("Error fetching employees:", e);
+            return {};
+        }
+    };
+    const employeeMap = await fetchEmployees();
 
     // 1. Aggregate Data
     let totalDisbursed = 0;
@@ -148,39 +191,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
 
-    // 4. Render Chart
-    const ctx = document.getElementById('reportChart');
-    if (ctx) {
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Total Disbursed', 'Total Repaid', 'Net Balance', 'Incentive'],
-                datasets: [{
-                    label: 'Amount (₹)',
-                    data: [totalDisbursed, totalRepaid, netBalance, incentive],
-                    backgroundColor: ['#3498db', '#27ae60', '#f39c12', '#9b59b6'],
-                    borderRadius: 5
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    title: { display: true, text: 'My Performance Overview' }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '₹' + value.toLocaleString('en-IN');
-                            }
-                        }
+    // 4. Render Employee Incentive Table (Replaces Chart)
+    const incentiveBody = document.getElementById('incentive-table-body');
+    if (incentiveBody) {
+        // Calculate Monthly Incentives
+        const incentiveData = {}; // key: YYYY-MM_email
+
+        myLoans.forEach(loan => {
+            if (!loan.emi_schedule) return;
+
+            // Get Employee Name
+            const email = loan.employeeEmail || 'unknown';
+            const empName = employeeMap[email] || email || 'Unknown Employee';
+
+            Object.values(loan.emi_schedule).forEach(payment => {
+                if (payment.status === 'Paid' && payment.date) {
+                    const amount = parseFloat(payment.amountPaid) || 0;
+                    if (amount <= 0) return;
+
+                    // Parse Date
+                    let pDate;
+                    if (payment.date.toDate) pDate = payment.date.toDate();
+                    else pDate = new Date(payment.date);
+
+                    if (isNaN(pDate.getTime())) return;
+
+                    const monthKey = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+                    const groupKey = `${monthKey}_${email}`;
+
+                    if (!incentiveData[groupKey]) {
+                        incentiveData[groupKey] = {
+                            monthRaw: monthKey,
+                            monthDisplay: pDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                            empName: empName,
+                            totalCollected: 0
+                        };
                     }
+                    incentiveData[groupKey].totalCollected += amount;
                 }
-            }
+            });
         });
+
+        const sortedIncentives = Object.values(incentiveData).sort((a, b) => b.monthRaw.localeCompare(a.monthRaw));
+
+        incentiveBody.innerHTML = '';
+        if (sortedIncentives.length === 0) {
+            incentiveBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No incentive data found.</td></tr>';
+        } else {
+            sortedIncentives.forEach(item => {
+                const incentive = item.totalCollected * 0.02;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.monthDisplay}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.empName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₹${item.totalCollected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; color: #27ae60; font-weight: bold;">₹${incentive.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                `;
+                incentiveBody.appendChild(row);
+            });
+        }
     }
 
     // 5. Download CSV

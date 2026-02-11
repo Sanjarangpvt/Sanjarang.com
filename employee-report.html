@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Performance Report</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sidebar.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="sidebar collapsed"></aside>
+        <div class="main-content">
+            <header class="custom-header-box">
+                <div class="header-container">
+                    <div class="header-left">
+                        <a href="dashboard.html"
+                            style="color:white; text-decoration:none; display:flex; align-items:center; gap:10px;"
+                            title="Back to Dashboard">
+                            <i class="bi bi-arrow-left-circle" style="font-size: 1.5rem;"></i>
+                        </a>
+                        <div class="header-title-group">
+                            <h1 id="report-title">Employee Report</h1>
+                            <div class="user-profile">
+                                <span class="user-name" id="employee-name-header">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <main>
+                <div id="content-area">
+                    <!-- Stats Grid -->
+                    <section class="dashboard-grid" style="grid-template-columns: repeat(4, 1fr);">
+                        <div class="card stat-card card-blue">
+                            <div class="stat-icon">💰</div>
+                            <div class="stat-details">
+                                <h3>Total Disbursed</h3>
+                                <p class="stat-number" id="stat-total-disbursed">₹0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-orange">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-details">
+                                <h3>Total Borrowers</h3>
+                                <p class="stat-number" id="stat-total-borrowers">0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-green">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-details">
+                                <h3>Total Collected</h3>
+                                <p class="stat-number" id="stat-total-collected">₹0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-red">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-details">
+                                <h3>Overdue Loans</h3>
+                                <p class="stat-number" id="stat-overdue-loans">0</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Loans Table -->
+                    <section class="card">
+                        <h2>Disbursed Loans</h2>
+                        <div style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+                            <table id="employee-loans-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ref No</th>
+                                        <th>Borrower</th>
+                                        <th>Amount</th>
+                                        <th>Disbursed Date</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" style="text-align:center;">Loading loans...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+        </div>
+        </main>
+    </div>
+    </div>
+    <script src="app.js" defer></script>
+    <script src="employee-report.js" defer></script>
+</body>
+
+</html>

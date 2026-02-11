@@ -84,9 +84,27 @@
 
                     <!-- Charts -->
                     <section class="card">
-                        <h2>Income vs Expense Overview</h2>
-                        <div style="height: 400px;">
-                            <canvas id="reportChart"></canvas>
+                        <h2>Employee Monthly Incentives</h2>
+                        <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead style="background-color: #ffffff; position: sticky; top: 0;">
+                                    <tr>
+                                        <th style="text-align: left; padding: 10px; border-bottom: 2px solid #d3d3d3;">
+                                            Month</th>
+                                        <th style="text-align: left; padding: 10px; border-bottom: 2px solid #d3d3d3;">
+                                            Employee Name</th>
+                                        <th style="text-align: right; padding: 10px; border-bottom: 2px solid #d3d3d3;">
+                                            Total Collected</th>
+                                        <th style="text-align: right; padding: 10px; border-bottom: 2px solid #ddd;">
+                                            Incentive (2%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="incentive-table-body">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; padding: 20px;">Loading data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </section>
                 </div>

@@ -10,7 +10,7 @@
 /* Sidebar Styles */
 .sidebar {
     width: 260px;
-    background: #2c3e50;
+    background: var(--sidebar-bg, #2c3e50);
     border-right: 1px solid rgba(255, 255, 255, 0.1);
     color: #ecf0f1;
     display: flex;
@@ -25,19 +25,34 @@
 }
 
 .sidebar-header {
+
     padding: 1.5rem;
+
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
     display: flex;
+
+    flex-direction: column;
+
     align-items: center;
-    gap: 15px;
+
+    gap: 10px;
+
     order: 1;
+
 }
 
-.sidebar-header > span {
-    font-size: 1.2rem;
+
+
+.sidebar-header>span {
+    display: flex;
+    flex-direction: column;
     font-weight: bold;
-    margin-right: auto; /* Pushes collapse button to the right */
-    white-space: nowrap;
+    text-align: center;
+    max-width: 160px;
+
+
+
 }
 
 .sidebar.collapsed {
@@ -81,11 +96,15 @@
     gap: 0.5rem;
     flex: 1;
     overflow-y: auto;
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: none;
+    /* Firefox */
     order: 3;
 }
+
 /* Hide scrollbar for Chrome/Safari/Opera */
-.sidebar nav::-webkit-scrollbar { display: none; }
+.sidebar nav::-webkit-scrollbar {
+    display: none;
+}
 
 .sidebar nav a {
     color: #bdc3c7;
@@ -113,7 +132,8 @@
     padding: 15px 0;
 }
 
-.sidebar nav a:hover, .sidebar nav a.active {
+.sidebar nav a:hover,
+.sidebar nav a.active {
     background: rgba(255, 255, 255, 0.1);
     color: white;
 }

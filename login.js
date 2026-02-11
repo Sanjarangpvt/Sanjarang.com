@@ -1,5 +1,5 @@
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, doc, writeBatch, collection, query, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, doc, writeBatch, collection, query, where, getDocs, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { app } from "./firebase-config.js";
 
 let auth, db;
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
-        loginForm.addEventListener('submit', async function(e) {
+        loginForm.addEventListener('submit', async function (e) {
             e.preventDefault();
 
             if (!auth) {
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('password').value;
             const errorMsg = document.getElementById('error-message');
             const card = document.querySelector('.login-card');
-            
+
             // Basic validation
             if (!username || !password) {
                 errorMsg.style.display = 'block';
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMsg.textContent = 'No internet connection. Please check your network.';
                 return;
             }
-            
+
             // Set Loading State
             const btn = document.querySelector('.login-btn');
             btn.innerHTML = '<div class="spinner"></div> Authenticating...';
@@ -81,10 +81,11 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.style.cursor = 'not-allowed';
             errorMsg.style.display = 'none';
 
-            const handleLoginSuccess = async (userEmail, role) => {
+            const handleLoginSuccess = async (displayName, role, email) => {
                 console.log("Login successful, processing user data...");
                 localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('currentUser', userEmail);
+                localStorage.setItem('currentUser', displayName);
+                if (email) localStorage.setItem('currentUserEmail', email);
                 localStorage.setItem('userRole', role);
                 localStorage.setItem('showWelcomeToast', 'true');
 
@@ -202,10 +203,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (operationCount > 0) batches.push(currentBatch);
 
                     console.log(`Committing ${batches.length} batches...`);
-                    
+
                     // Add timeout to prevent hanging
                     const commitPromises = batches.map(batch => batch.commit());
-                    const timeoutPromise = new Promise((_, reject) => 
+                    const timeoutPromise = new Promise((_, reject) =>
                         setTimeout(() => reject(new Error("Sync timeout")), 15000)
                     );
 
@@ -239,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const handleLoginError = (msg) => {
                 errorMsg.style.display = 'block';
                 errorMsg.textContent = msg || 'Invalid credentials';
-                
+
                 // Reset button
                 btn.innerHTML = 'Login';
                 btn.disabled = false;
@@ -257,13 +258,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (confirm('Network issues detected. Try offline login? (For testing only)')) {
                             // Simple offline login for admin
                             if (loginType === 'admin' && username === 'admin@test.com' && password === 'admin123') {
-                                handleLoginSuccess('admin@test.com', 'Administrator');
+                                handleLoginSuccess('admin@test.com', 'Administrator', 'admin@test.com');
                             } else if (loginType === 'employee') {
                                 // Check local employees
                                 const localEmployees = JSON.parse(localStorage.getItem('employees')) || [];
                                 const localEmp = localEmployees.find(e => e.email === username);
                                 if (localEmp && localEmp.password === password) {
-                                    handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff');
+                                    handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff', localEmp.email);
                                 } else {
                                     alert('Offline login failed. Please check your credentials.');
                                 }
@@ -278,29 +279,53 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loginType === 'admin') {
                 // ADMIN LOGIN (Firebase Auth)
                 console.log("Attempting admin login for:", username);
-                
+
                 // Add timeout to prevent hanging
                 const loginPromise = signInWithEmailAndPassword(auth, username, password);
-                const timeoutPromise = new Promise((_, reject) => 
+                const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error("Login timeout - check network connection")), 15000)
                 );
 
                 Promise.race([loginPromise, timeoutPromise])
-                    .then((userCredential) => {
-                        console.log("Admin login successful");
-                        handleLoginSuccess(userCredential.user.email, 'Administrator');
+                    .then(async (userCredential) => { // Make async to use await
+                        console.log("Admin Firebase auth successful");
+
+                        // --- Verification Step ---
+                        // Now, check if this authenticated user is actually in our 'admin_users' collection
+                        try {
+                            const adminDocRef = doc(db, "admin_users", userCredential.user.email);
+                            const adminDocSnap = await getDoc(adminDocRef);
+
+                            if (adminDocSnap.exists()) {
+                                // User is a valid admin
+                                console.log("Admin role verified in Firestore.");
+                                const adminData = adminDocSnap.data();
+                                handleLoginSuccess(userCredential.user.email, adminData.role || 'Administrator', userCredential.user.email);
+                            } else {
+                                // User authenticated with Firebase, but is not in our admin list.
+                                // This prevents employees from using the admin login.
+                                console.warn("Access Denied: User authenticated but is not a registered administrator.");
+                                await signOut(auth); // Sign them out immediately
+                                handleLoginError("Access Denied. You are not an authorized administrator.");
+                            }
+                        } catch (firestoreError) {
+                            console.error("Error verifying admin role:", firestoreError);
+                            await signOut(auth); // Sign out for safety
+                            handleLoginError("A system error occurred while verifying your role.");
+                        }
                     })
                     .catch((error) => {
                         console.error("Admin Login Error:", error);
-                        handleLoginError(error.message || 'Login failed - check network connection');
+                        const friendlyMessage = error.code === 'auth/invalid-credential' ? 'Invalid email or password.' : 'Login failed. Check network or credentials.';
+                        handleLoginError(friendlyMessage);
                     });
             } else {
                 // EMPLOYEE LOGIN (Firebase Auth)
                 console.log("Attempting employee login for:", username);
-                
+
                 // Add timeout to prevent hanging
                 const loginPromise = signInWithEmailAndPassword(auth, username, password);
-                const timeoutPromise = new Promise((_, reject) => 
+                const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error("Login timeout - check network connection")), 15000)
                 );
 
@@ -312,16 +337,28 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Try to get details from Firestore to get name/designation
                             const q = query(collection(db, "employees"), where("email", "==", email));
                             const querySnapshot = await getDocs(q);
-                            
+
                             if (!querySnapshot.empty) {
                                 const data = querySnapshot.docs[0].data();
-                                handleLoginSuccess(data.name, data.designation || 'Staff');
+
+                                // STRICT ROLE CHECK: "filter first role and allow to login when role is employee"
+                                const employeeRole = (data.role || '').toLowerCase();
+                                if (employeeRole === 'employee') {
+                                    handleLoginSuccess(data.name, data.designation || 'Staff', email);
+                                } else {
+                                    console.warn("Access Denied: User role is not 'employee'. Found:", employeeRole);
+                                    await signOut(auth);
+                                    handleLoginError("Access Denied: You do not have the required 'employee' role.");
+                                }
                             } else {
-                                handleLoginSuccess(email, 'Staff');
+                                // User authenticated but not in employees collection
+                                console.warn("Access Denied: User not found in employees collection.");
+                                await signOut(auth);
+                                handleLoginError("Access Denied: Employee record not found.");
                             }
                         } catch (e) {
                             console.error("Error fetching employee details:", e);
-                            handleLoginSuccess(email, 'Staff');
+                            handleLoginError("System error verifying employee status.");
                         }
                     })
                     .catch((error) => {
@@ -333,8 +370,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (localEmp) {
                             if (localEmp.password === password) {
-                                console.log("Employee login successful via local storage");
-                                handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff');
+                                // STRICT ROLE CHECK LOCALLY
+                                const employeeRole = (localEmp.role || '').toLowerCase();
+                                if (employeeRole === 'employee') {
+                                    console.log("Employee login successful via local storage");
+                                    handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff', localEmp.email);
+                                } else {
+                                    handleLoginError("Access Denied: You do not have the required 'employee' role.");
+                                }
                             } else {
                                 handleLoginError('Incorrect password');
                             }
@@ -352,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
 
     if (togglePassword && passwordInput) {
-        togglePassword.addEventListener('click', function() {
+        togglePassword.addEventListener('click', function () {
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
             this.classList.toggle('bi-eye');
@@ -374,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if(confirm(`Send password reset email to ${email}?`)) {
+            if (confirm(`Send password reset email to ${email}?`)) {
                 sendPasswordResetEmail(auth, email)
                     .then(() => {
                         alert("Password reset email sent! Please check your inbox.");

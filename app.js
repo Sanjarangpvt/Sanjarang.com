@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
         const sidebarLogo = document.getElementById('sidebar-logo');
         const sidebarCompanyName = document.getElementById('sidebar-company-name');
-        
+
         if (savedProfile.name && sidebarCompanyName) {
             sidebarCompanyName.textContent = savedProfile.name;
         }
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.className = 'toast-notification';
         toast.innerHTML = `<i class="bi bi-check-circle-fill" style="font-size: 1.2rem;"></i> <span>Welcome back, ${user}!</span>`;
         document.body.appendChild(toast);
-        
+
         // Trigger animation
         requestAnimationFrame(() => {
             toast.classList.add('show');
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.classList.remove('show');
             setTimeout(() => toast.remove(), 400);
         }, 3500);
-        
+
         localStorage.removeItem('showWelcomeToast');
     }
 
@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Apply Theme Class
         document.body.classList.remove('dark-mode', 'blue-theme', 'green-theme', 'glass-theme');
-        
+
         if (theme === 'dark') document.body.classList.add('dark-mode');
         else if (theme === 'blue') document.body.classList.add('blue-theme');
         else if (theme === 'green') document.body.classList.add('green-theme');
@@ -185,32 +185,53 @@ document.addEventListener('DOMContentLoaded', () => {
             overlay.style.backgroundImage = `url('${customBg}')`;
             overlay.style.opacity = bgOpacity;
             overlay.style.filter = `blur(${bgBlur}px)`;
-            
+
             if (mainContent) mainContent.style.backgroundColor = 'transparent';
             if (appLayout) appLayout.style.backgroundColor = 'transparent';
         } else {
             document.body.classList.remove('custom-bg-active');
             overlay.style.backgroundImage = '';
-            
+
             if (mainContent) mainContent.style.backgroundColor = '';
             if (appLayout) appLayout.style.backgroundColor = '';
         }
     };
     applyThemeGlobal();
 
+    // Helper to safely parse any date format (String, ISO, or Firestore Timestamp)
+    const parseSafeDate = (dateInput) => {
+        if (!dateInput) return new Date(0);
+        if (dateInput instanceof Date) return dateInput;
+        if (typeof dateInput === 'object' && dateInput.seconds) {
+            return new Date(dateInput.seconds * 1000);
+        }
+        const d = new Date(dateInput);
+        return isNaN(d.getTime()) ? new Date(0) : d;
+    };
+
     // Helper for date formatting (dd/mm/yyyy)
     const formatDate = (dateInput) => {
-        if (!dateInput) return 'N/A';
-        const date = new Date(dateInput);
-        if (isNaN(date.getTime())) return dateInput;
+        const date = parseSafeDate(dateInput);
+        if (date.getTime() === 0) return 'N/A';
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
         return `${day}/${month}/${year}`;
     };
 
+    // Load JSON safely from localStorage
+    const getLocalJSON = (key) => {
+        try {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : [];
+        } catch (e) {
+            console.error(`Error parsing localStorage key "${key}":`, e);
+            return [];
+        }
+    };
+
     // 1. Load data from LocalStorage (Shared between pages)
-    let loans = JSON.parse(localStorage.getItem('loans')) || [];
+    let loans = getLocalJSON('loans');
     // Split local data to prevent flickering before Firestore loads
     let fetchedLoans = loans.filter(l => l.firestoreCollection !== 'loan_applications');
     let fetchedApps = loans.filter(l => l.firestoreCollection === 'loan_applications');
@@ -238,12 +259,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
             db = getFirestore(app);
             firestoreOps = { doc, setDoc, addDoc, deleteDoc, collection };
-            
+
             // Listener 1: Active/Closed Loans
             onSnapshot(collection(db, "loans"), (snapshot) => {
                 fetchedLoans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, firestoreCollection: 'loans' }));
                 updateAllLoans();
-            });
+            }, (err) => console.error("Loans listener error:", err));
 
             // Listener 2: Loan Applications (Pending)
             onSnapshot(collection(db, "loan_applications"), (snapshot) => {
@@ -252,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return { ...data, id: doc.id, status: data.status || 'Pending', firestoreCollection: 'loan_applications' };
                 });
                 updateAllLoans();
-            });
+            }, (err) => console.error("Loan Applications listener error:", err));
 
             // Listener 3: EMI Schedules
             onSnapshot(collection(db, "emi_schedule"), (snapshot) => {
@@ -261,7 +282,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchedSchedules[doc.id] = doc.data();
                 });
                 updateAllLoans();
-            });
+            }, (err) => console.error("EMI Schedule listener error:", err));
+
+            // Listener 4: Expenses
+            onSnapshot(collection(db, "expenses"), (snapshot) => {
+                const expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                localStorage.setItem('expenses', JSON.stringify(expenses));
+                document.dispatchEvent(new CustomEvent('expenses-updated'));
+            }, (err) => console.error("Expenses sync error:", err));
+
+            // Listener 5: Wallet Transactions
+            onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
+                const transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                localStorage.setItem('walletTransactions', JSON.stringify(transactions));
+                document.dispatchEvent(new CustomEvent('wallet-updated'));
+            }, (err) => console.error("Wallet sync error:", err));
 
             // Sync Company Profile
             onSnapshot(doc(db, "settings", "companyProfile"), (docSnap) => {
@@ -269,12 +304,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('companyProfile', JSON.stringify(docSnap.data()));
                     updateSidebarProfile();
                 }
-            });
+            }, (err) => console.error("Company Profile sync error:", err));
 
             // Sync Admin Users
             onSnapshot(collection(db, "admin_users"), (snapshot) => {
                 const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
                 localStorage.setItem('adminUsers', JSON.stringify(admins));
+            }, (err) => console.error("Admin Users sync error:", err));
+
+            // Listener for Employees
+            onSnapshot(collection(db, "employees"), (snapshot) => {
+                const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                localStorage.setItem('employees', JSON.stringify(employees));
+                document.dispatchEvent(new CustomEvent('loans-updated'));
+            }, (err) => console.error("Employees sync error:", err));
+
+            // Listener for Dashboard Message
+            onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
+                const messageBar = document.querySelector('.message-bar');
+                const messageText = document.getElementById('dashboard-message-text');
+
+                if (messageBar && messageText) {
+                    if (docSnap.exists() && docSnap.data().text && docSnap.data().text.trim() !== '') {
+                        messageText.textContent = docSnap.data().text;
+                        messageBar.style.display = 'block';
+                    } else {
+                        messageBar.style.display = 'none';
+                    }
+                }
             });
         } catch (e) {
             console.log("Firestore sync not active (offline or config missing)");
@@ -283,8 +340,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initFirestore();
 
     // --- SYNC STATUS MANAGEMENT ---
-    let syncStatus = 'synced'; // 'synced', 'syncing', 'offline', 'error'
-    
+    let syncStatus = 'synced'; // 'synced', 'syncing', 'offline', 'error' 
+
     const updateSyncStatus = (status, message = '') => {
         syncStatus = status;
         const syncElement = document.getElementById('sync-status');
@@ -301,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
             offline: '<i class="bi bi-cloud-slash"></i>',
             error: '<i class="bi bi-cloud-exclamation"></i>'
         };
-        
+
         const texts = {
             synced: 'Synced',
             syncing: 'Syncing...',
@@ -325,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global sync function for manual sync
     window.manualSync = async () => {
         if (syncStatus === 'syncing') return;
-        
+
         updateSyncStatus('syncing');
         try {
             // Import sync function from login.js or recreate it
@@ -434,10 +491,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (operationCount > 0) batches.push(currentBatch);
 
             console.log(`Manual sync: Committing ${batches.length} batches...`);
-            
+
             // Add timeout
             const commitPromises = batches.map(batch => batch.commit());
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Sync timeout")), 30000)
             );
 
@@ -458,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const saveLoans = async (loanData = null, isDelete = false) => {
         localStorage.setItem('loans', JSON.stringify(loans));
-        
+
         if (db && firestoreOps.doc && loanData) {
             const { doc, setDoc, addDoc, deleteDoc, collection } = firestoreOps;
             try {
@@ -511,9 +568,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper to calculate next due date (Starts 1 month after Issue Date)
     const getNextDueDate = (loan) => {
         if (!loan.dueDate) return null;
-        const issueDate = new Date(loan.dueDate);
+
+        let issueDate;
+        if (typeof loan.dueDate === 'object' && 'seconds' in loan.dueDate) {
+            issueDate = new Date(loan.dueDate.seconds * 1000);
+        } else {
+            issueDate = new Date(loan.dueDate);
+        }
+        if (isNaN(issueDate.getTime())) return null;
+
         const tenure = parseInt(loan.tenure) || 1;
-        
+
         // Check emi_schedule first
         if (loan.emi_schedule) {
             for (let i = 1; i <= tenure; i++) {
@@ -529,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Legacy Fallback
         const paid = loan.paidInstallments || [];
-        
+
         for (let i = 1; i <= tenure; i++) {
             if (!paid.includes(i)) {
                 const nextDate = new Date(issueDate);
@@ -557,14 +622,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userRole !== 'Administrator') {
         const settingsLink = document.querySelector('nav a[href="settings.html"]');
         if (settingsLink) settingsLink.style.display = 'none';
-        const walletLink = document.querySelector('nav a[href="wallet.html"]');
-        if (walletLink) walletLink.style.display = 'none';
         const profileLink = document.querySelector('nav a[href="profile.html"]');
         if (profileLink) profileLink.style.display = 'none';
 
         // Hide Wallet from Quick Actions
-        const qaWalletLink = document.querySelector('.quick-actions-list a[href="wallet.html"]');
-        if (qaWalletLink) qaWalletLink.parentElement.style.display = 'none';
     }
 
     // --- MANAGE LOANS PAGE LOGIC (index.html) ---
@@ -673,10 +734,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mode === 'edit' && editId !== null && loans[editId]) {
             const loan = loans[editId];
             document.title = "Edit Loan Application";
-            
+
             // Populate Fields
-            const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
-            
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+
             setVal('p-borrower', loan.borrower);
             setVal('p-dob', loan.dob);
             setVal('p-father', loan.fatherName);
@@ -695,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setVal('p-tenure', loan.tenure);
             setVal('p-dueDate', loan.dueDate);
             setVal('p-purpose', loan.purpose);
-            if(loan.loanRef) { const refEl = document.getElementById('display-loan-ref'); if(refEl) refEl.textContent = `Ref: ${loan.loanRef}`; }
+            if (loan.loanRef) { const refEl = document.getElementById('display-loan-ref'); if (refEl) refEl.textContent = `Ref: ${loan.loanRef}`; }
             calculateFormEMI(); // Calculate EMI for existing data
 
             // Populate Images
@@ -728,6 +789,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const loanStatus = userRole === 'Administrator' ? 'Active' : 'Pending';
 
             const newLoan = {
+                employeeEmail: localStorage.getItem('currentUserEmail'),
+                assignedTo: document.getElementById('p-assigned-to') ? document.getElementById('p-assigned-to').value : (localStorage.getItem('currentUser') || ''),
+                createdBy: localStorage.getItem('currentUser'),
                 borrower: document.getElementById('p-borrower').value,
                 amount: document.getElementById('p-amount').value,
                 dueDate: document.getElementById('p-dueDate').value,
@@ -750,7 +814,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 photo: getImgSrc('preview-photo'),
                 applicantSignature: getImgSrc('preview-sign-applicant'),
                 guarantorSignature: getImgSrc('preview-sign-guarantor'),
-                status: loanStatus
+                status: loanStatus,
+                createdBy: localStorage.getItem('currentUser')
             };
 
             let message = '';
@@ -764,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Generate Loan Reference Number
                 const date = new Date();
                 const randomNum = Math.floor(1000 + Math.random() * 9000);
-                const refNo = `LN${date.getFullYear().toString().slice(-2)}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}-${randomNum}`;
+                const refNo = `LN${date.getFullYear().toString().slice(-2)}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}-${randomNum}`;
                 newLoan.loanRef = refNo;
 
                 loans.push(newLoan);
@@ -775,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     message = `Loan Disbursed Successfully!<br>Ref No: <strong>${refNo}</strong>`;
                 }
             }
-            
+
             const successPopup = document.getElementById('success-popup');
             const handleClose = () => {
                 paperLoanForm.reset();
@@ -793,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const msgEl = document.getElementById('success-message');
                 if (msgEl) msgEl.innerHTML = message;
                 successPopup.style.display = 'flex';
-                
+
                 const closeBtn = document.getElementById('close-success-btn');
                 if (closeBtn) closeBtn.onclick = handleClose;
             } else {
@@ -815,11 +880,22 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
             searchResults.innerHTML = '';
-            
+
             if (query.length > 0) {
+                const userRole = localStorage.getItem('userRole');
+                const currentUser = localStorage.getItem('currentUser');
+
                 const matches = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
-                                     .filter(l => l.borrower.toLowerCase().includes(query));
-                
+                    .filter(l => {
+                        if (userRole !== 'Administrator') {
+                            const currentUserEmail = localStorage.getItem('currentUserEmail');
+                            const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
+                            const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
+                            if (!matchesName && !matchesEmail) return false;
+                        }
+                        return l.borrower.toLowerCase().includes(query);
+                    });
+
                 if (matches.length > 0) {
                     searchResults.style.display = 'block';
                     matches.forEach(match => {
@@ -835,7 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button class="search-loan-profile-btn" data-index="${match.originalIndex}" style="background-color: #2c3e50; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; white-space: nowrap;">Loan Profile</button>
                             </div>
                         `;
-                        
+
                         div.style.display = 'flex';
                         div.style.justifyContent = 'space-between';
                         div.style.alignItems = 'center';
@@ -882,20 +958,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const monthlyRevenueEl = document.getElementById('stat-monthly-revenue');
         const totalInterestEl = document.getElementById('stat-total-interest');
         const chartCanvas = document.getElementById('loanStatusChart');
-        
+
         let loanChart = null;
         let plChart = null;
         let finChart = null;
 
         const renderDashboard = () => {
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+
+            const displayLoans = (userRole !== 'Administrator') ? loans.filter(l => {
+                const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
+                const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
+                return matchesName || matchesEmail;
+            }) : loans;
+
             // Calculate Stats
-            const closedCount = loans.filter(l => getNextDueDate(l) === null).length;
-            const pendingCount = loans.filter(l => l.status === 'Pending').length;
-            const activeLoans = loans.filter(l => l.status !== 'Pending' && getNextDueDate(l) !== null);
-            const uniqueBorrowers = new Set(loans.map(l => (l.borrower || '').trim()).filter(b => b)).size;
-            
+            const closedCount = displayLoans.filter(l => getNextDueDate(l) === null).length;
+            const pendingCount = displayLoans.filter(l => l.status === 'Pending').length;
+            const activeLoans = displayLoans.filter(l => l.status !== 'Pending' && getNextDueDate(l) !== null);
+            const uniqueBorrowers = new Set(displayLoans.map(l => (l.borrower || '').trim()).filter(b => b)).size;
+
+            // For "My Applications" count on employee dashboard
+            const myApplicationsEl = document.getElementById('stat-my-applications');
+            if (myApplicationsEl) {
+                const myPendingApps = fetchedApps.filter(app => {
+                    const matchesName = (app.createdBy === currentUser);
+                    const matchesEmail = (app.employeeEmail && app.employeeEmail === currentUserEmail);
+                    return (matchesName || matchesEmail) && app.status === 'Pending';
+                }).length;
+                myApplicationsEl.textContent = myPendingApps;
+            }
+
             // Calculate Total Interest Earned (Projected)
-            const totalInterest = loans.reduce((sum, loan) => {
+            const totalInterest = displayLoans.reduce((sum, loan) => {
+                if (loan.status === 'Pending' || loan.status === 'Rejected') return sum;
                 const P = parseFloat(loan.amount) || 0;
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 0;
@@ -908,17 +1006,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentYear = now.getFullYear();
             let monthlyRevenue = 0;
 
-            loans.forEach(loan => {
+            displayLoans.forEach(loan => {
+                if (loan.status === 'Pending' || loan.status === 'Rejected') return;
+
                 const P = parseFloat(loan.amount) || 0;
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
+                const issueDate = parseSafeDate(loan.dueDate);
 
                 if (loan.emi_schedule) {
                     Object.values(loan.emi_schedule).forEach(entry => {
                         if (entry.date) {
-                            const payDate = new Date(entry.date);
+                            const payDate = parseSafeDate(entry.date);
                             if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
                                 monthlyRevenue += parseFloat(entry.amountPaid || 0);
                             }
@@ -926,25 +1026,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 } else {
                     // Legacy Logic
-                if (loan.paidInstallments) {
-                    loan.paidInstallments.forEach(inst => {
-                        const instDate = new Date(issueDate);
-                        instDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                        if (instDate.getMonth() === currentMonth && instDate.getFullYear() === currentYear) {
-                            monthlyRevenue += emi;
-                        }
-                    });
-                }
+                    if (loan.paidInstallments) {
+                        loan.paidInstallments.forEach(inst => {
+                            const instDate = new Date(issueDate);
+                            if (instDate.getTime() > 0) {
+                                instDate.setMonth(issueDate.getMonth() + parseInt(inst));
+                                if (instDate.getMonth() === currentMonth && instDate.getFullYear() === currentYear) {
+                                    monthlyRevenue += emi;
+                                }
+                            }
+                        });
+                    }
 
-                if (loan.partialPayments) {
-                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
-                        const instDate = new Date(issueDate);
-                        instDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                        if (instDate.getMonth() === currentMonth && instDate.getFullYear() === currentYear) {
-                            monthlyRevenue += parseFloat(amount);
-                        }
-                    });
-                }
+                    if (loan.partialPayments) {
+                        Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                            const instDate = new Date(issueDate);
+                            if (instDate.getTime() > 0) {
+                                instDate.setMonth(issueDate.getMonth() + parseInt(inst));
+                                if (instDate.getMonth() === currentMonth && instDate.getFullYear() === currentYear) {
+                                    monthlyRevenue += parseFloat(amount);
+                                }
+                            }
+                        });
+                    }
                 }
             });
 
@@ -956,20 +1060,24 @@ document.addEventListener('DOMContentLoaded', () => {
             let totalRepaid = 0;
             let overviewInterest = 0;
 
-            loans.forEach(loan => {
+            displayLoans.forEach(loan => {
+                if (loan.status === 'Pending' || loan.status === 'Rejected') return;
+
                 const P = parseFloat(loan.amount) || 0;
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = loan.dueDate ? new Date(loan.dueDate) : new Date();
-                
+                const issueDate = parseSafeDate(loan.dueDate);
+
                 // 1. Disbursed & Interest (Filter by Issue Date)
                 let includeLoan = true;
-                if (filterDate && loan.dueDate) {
+                if (filterDate && issueDate.getTime() > 0) {
                     const loanMonth = issueDate.toISOString().slice(0, 7);
                     if (loanMonth !== filterDate) includeLoan = false;
+                } else if (filterDate && issueDate.getTime() === 0) {
+                    includeLoan = false; // Filter set but date invalid/missing
                 }
-                
+
                 if (includeLoan) {
                     totalDisbursed += P;
                     overviewInterest += (P * (R / 100) * N);
@@ -979,52 +1087,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (loan.emi_schedule) {
                     Object.values(loan.emi_schedule).forEach(entry => {
                         if (entry.date) {
-                            const payDate = new Date(entry.date);
+                            const payDate = parseSafeDate(entry.date);
                             let includePayment = true;
-                            if (filterDate) {
+                            if (filterDate && payDate.getTime() > 0) {
                                 const payMonth = payDate.toISOString().slice(0, 7);
                                 if (payMonth !== filterDate) includePayment = false;
+                            } else if (filterDate && payDate.getTime() === 0) {
+                                includePayment = false;
                             }
                             if (includePayment) totalRepaid += parseFloat(entry.amountPaid || 0);
                         }
                     });
                 } else {
                     // Legacy Logic
-                if (loan.paidInstallments) {
-                    loan.paidInstallments.forEach(inst => {
-                        // Determine payment date (use actual if available, else scheduled)
-                        let payDate = new Date(issueDate);
-                        payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                        if (loan.paidDates && loan.paidDates[inst]) {
-                            payDate = new Date(loan.paidDates[inst]);
-                        }
+                    if (loan.paidInstallments) {
+                        loan.paidInstallments.forEach(inst => {
+                            // Determine payment date (use actual if available, else scheduled)
+                            let payDate = issueDate.getTime() > 0 ? new Date(issueDate) : null;
+                            if (payDate) {
+                                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
+                                if (loan.paidDates && loan.paidDates[inst]) {
+                                    payDate = parseSafeDate(loan.paidDates[inst]);
+                                }
 
-                        let includePayment = true;
-                        if (filterDate) {
-                            const payMonth = payDate.toISOString().slice(0, 7);
-                            if (payMonth !== filterDate) includePayment = false;
-                        }
+                                let includePayment = true;
+                                if (filterDate && payDate.getTime() > 0) {
+                                    const payMonth = payDate.toISOString().slice(0, 7);
+                                    if (payMonth !== filterDate) includePayment = false;
+                                } else if (filterDate) {
+                                    includePayment = false;
+                                }
 
-                        if (includePayment) totalRepaid += emi;
-                    });
-                }
-                if (loan.partialPayments) {
-                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
-                        let payDate = new Date(issueDate);
-                        payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                        if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) {
-                            payDate = new Date(loan.partialPaymentDates[inst]);
-                        }
+                                if (includePayment) totalRepaid += emi;
+                            }
+                        });
+                    }
+                    if (loan.partialPayments) {
+                        Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                            let payDate = issueDate.getTime() > 0 ? new Date(issueDate) : null;
+                            if (payDate) {
+                                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
+                                if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) {
+                                    payDate = parseSafeDate(loan.partialPaymentDates[inst]);
+                                }
 
-                        let includePayment = true;
-                        if (filterDate) {
-                            const payMonth = payDate.toISOString().slice(0, 7);
-                            if (payMonth !== filterDate) includePayment = false;
-                        }
+                                let includePayment = true;
+                                if (filterDate && payDate.getTime() > 0) {
+                                    const payMonth = payDate.toISOString().slice(0, 7);
+                                    if (payMonth !== filterDate) includePayment = false;
+                                } else if (filterDate) {
+                                    includePayment = false;
+                                }
 
-                        if (includePayment) totalRepaid += parseFloat(amount);
-                    });
-                }
+                                if (includePayment) totalRepaid += parseFloat(amount);
+                            }
+                        });
+                    }
                 }
             });
 
@@ -1061,10 +1179,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const progress = Math.min((timestamp - startTimestamp) / duration, 1);
                     const easeProgress = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
                     const currentVal = start + (end - start) * easeProgress;
-                    
+
                     if (isCurrency) obj.textContent = '₹' + currentVal.toFixed(2);
                     else obj.textContent = Math.floor(currentVal);
-                    
+
                     if (progress < 1) window.requestAnimationFrame(step);
                     else obj.textContent = isCurrency ? '₹' + end.toFixed(2) : end;
                 };
@@ -1152,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const months = [];
                 const monthLabels = [];
                 const today = new Date();
-                
+
                 // Generate last 6 months keys
                 for (let i = 5; i >= 0; i--) {
                     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
@@ -1164,7 +1282,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cashFlow = {};
                 months.forEach(m => cashFlow[m] = 0);
 
-                loans.forEach(loan => {
+                displayLoans.forEach(loan => {
+                    if (loan.status === 'Pending' || loan.status === 'Rejected') return;
+
                     // Outflow: Disbursements
                     if (loan.dueDate) {
                         const issueMonth = loan.dueDate.slice(0, 7);
@@ -1193,34 +1313,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     } else {
                         // Legacy
-                    if (loan.paidInstallments) {
-                        loan.paidInstallments.forEach(inst => {
-                            let payDate = new Date(issueDate);
-                            if (isNaN(payDate.getTime())) return;
-                            payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                            if (loan.paidDates && loan.paidDates[inst]) payDate = new Date(loan.paidDates[inst]);
-                            
-                            if (!isNaN(payDate.getTime())) {
-                                const payMonth = payDate.toISOString().slice(0, 7);
-                                if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += emi;
-                            }
-                        });
-                    }
+                        if (loan.paidInstallments) {
+                            loan.paidInstallments.forEach(inst => {
+                                let payDate = new Date(issueDate);
+                                if (isNaN(payDate.getTime())) return;
+                                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
+                                if (loan.paidDates && loan.paidDates[inst]) payDate = new Date(loan.paidDates[inst]);
 
-                    // Partial Payments
-                    if (loan.partialPayments) {
-                        Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
-                            let payDate = new Date(issueDate);
-                            if (isNaN(payDate.getTime())) return;
-                            payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                            if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) payDate = new Date(loan.partialPaymentDates[inst]);
-                            
-                            if (!isNaN(payDate.getTime())) {
-                                const payMonth = payDate.toISOString().slice(0, 7);
-                                if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += parseFloat(amount);
-                            }
-                        });
-                    }
+                                if (!isNaN(payDate.getTime())) {
+                                    const payMonth = payDate.toISOString().slice(0, 7);
+                                    if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += emi;
+                                }
+                            });
+                        }
+
+                        // Partial Payments
+                        if (loan.partialPayments) {
+                            Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                                let payDate = new Date(issueDate);
+                                if (isNaN(payDate.getTime())) return;
+                                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
+                                if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) payDate = new Date(loan.partialPaymentDates[inst]);
+
+                                if (!isNaN(payDate.getTime())) {
+                                    const payMonth = payDate.toISOString().slice(0, 7);
+                                    if (cashFlow.hasOwnProperty(payMonth)) cashFlow[payMonth] += parseFloat(amount);
+                                }
+                            });
+                        }
                     }
                 });
 
@@ -1247,6 +1367,62 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }
+
+            // --- EMPLOYEE PERFORMANCE TABLE LOGIC ---
+            const empTableBody = document.getElementById('employee-performance-tbody');
+            if (empTableBody) {
+                const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                const empStats = {};
+
+                // Initialize stats for all employees
+                employees.forEach(emp => {
+                    empStats[emp.email] = { name: emp.name, count: 0, amount: 0, email: emp.email };
+                });
+
+                // Calculate stats based on loans
+                displayLoans.forEach(loan => {
+                    // Only count disbursed loans (Active, Closed, Overdue) - exclude Pending/Rejected
+                    if (loan.status === 'Pending' || loan.status === 'Rejected') return;
+
+                    // Try to match loan to an employee
+                    let matchedEmail = null;
+                    if (loan.employeeEmail && empStats[loan.employeeEmail]) {
+                        matchedEmail = loan.employeeEmail;
+                    } else if (loan.assignedTo) {
+                        // Fallback: Match by name
+                        const found = employees.find(e => e.name === loan.assignedTo);
+                        if (found) matchedEmail = found.email;
+                    }
+
+                    if (matchedEmail) {
+                        empStats[matchedEmail].count++;
+                        empStats[matchedEmail].amount += parseFloat(loan.amount || 0);
+                    }
+                });
+
+                empTableBody.innerHTML = '';
+                if (employees.length === 0) {
+                    empTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 20px; color: #7f8c8d;">No employees found. Add staff in "Manage Staff".</td></tr>';
+                } else {
+                    // Sort by Total Disbursed (High to Low)
+                    const sortedStats = Object.values(empStats).sort((a, b) => b.amount - a.amount);
+
+                    sortedStats.forEach(stat => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>
+                                <a href="employee-report.html?email=${encodeURIComponent(stat.email)}" style="text-decoration: none; color: inherit;" title="View Detailed Report for ${stat.name}">
+                                    <div style="font-weight: 600;">${stat.name}</div>
+                                    <div style="font-size: 0.75rem; color: #7f8c8d;">${stat.email}</div>
+                                </a>
+                            </td>
+                            <td style="text-align: center;">${stat.count}</td>
+                            <td style="text-align: right;">₹${stat.amount.toFixed(2)}</td>
+                        `;
+                        empTableBody.appendChild(row);
+                    });
+                }
+            }
         };
 
         renderDashboard();
@@ -1262,7 +1438,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('borrower-modal');
         const closeModal = document.querySelector('.custom-close-modal');
         let currentBorrowerName = '';
-        
+
         if (modal && closeModal) {
 
             closeModal.addEventListener('click', () => {
@@ -1281,7 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
             function showBorrowerDetails(name) {
                 const modalTitle = document.getElementById('modal-borrower-name');
                 const modalTableBody = document.querySelector('#modal-loan-table ');
-                
+
                 modalTitle.textContent = name;
                 modalTableBody.innerHTML = '';
 
@@ -1289,8 +1465,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Map loans to include original index for editing
                 const borrowerLoans = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
-                                           .filter(l => l.borrower.trim() === name);
-                
+                    .filter(l => l.borrower.trim() === name);
+
                 borrowerLoans.forEach(loan => {
                     const row = document.createElement('tr');
                     const nextDue = getNextDueDate(loan);
@@ -1356,11 +1532,207 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- EMPLOYEE DASHBOARD SPECIFIC LOGIC ---
+    if (window.location.pathname.includes('Employee-dashboard.html')) {
+        const mainContent = document.querySelector('main');
+        if (mainContent) {
+            const btnContainer = document.createElement('div');
+            btnContainer.style.display = 'flex';
+            btnContainer.style.justifyContent = 'flex-end';
+            btnContainer.style.marginBottom = '20px';
+
+            const reportsBtn = document.createElement('button');
+            reportsBtn.className = 'btn';
+            reportsBtn.innerHTML = '<i class="bi bi-bar-chart-line"></i> My Reports';
+            reportsBtn.style.backgroundColor = '#8e44ad';
+            reportsBtn.style.color = 'white';
+            reportsBtn.style.border = 'none';
+            reportsBtn.style.padding = '10px 20px';
+            reportsBtn.style.borderRadius = '30px';
+            reportsBtn.style.fontWeight = 'bold';
+            reportsBtn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            reportsBtn.style.display = 'flex';
+            reportsBtn.style.alignItems = 'center';
+            reportsBtn.style.gap = '8px';
+            reportsBtn.style.cursor = 'pointer';
+            reportsBtn.style.transition = 'transform 0.2s, box-shadow 0.2s';
+            reportsBtn.style.marginRight = '10px';
+
+            reportsBtn.onmouseover = () => {
+                reportsBtn.style.transform = 'translateY(-2px)';
+                reportsBtn.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+            };
+            reportsBtn.onmouseout = () => {
+                reportsBtn.style.transform = 'translateY(0)';
+                reportsBtn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            };
+
+            reportsBtn.addEventListener('click', () => {
+                window.location.href = 'report.html';
+            });
+
+            const profileBtn = document.createElement('button');
+            profileBtn.className = 'btn';
+            profileBtn.innerHTML = '<i class="bi bi-person-circle"></i> My Profile';
+            profileBtn.style.backgroundColor = '#c70f81ff';
+            profileBtn.style.color = 'white';
+            profileBtn.style.border = 'none';
+            profileBtn.style.padding = '10px 20px';
+            profileBtn.style.borderRadius = '30px';
+            profileBtn.style.fontWeight = 'bold';
+            profileBtn.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            profileBtn.style.display = 'flex';
+            profileBtn.style.alignItems = 'center';
+            profileBtn.style.gap = '8px';
+            profileBtn.style.cursor = 'pointer';
+            profileBtn.style.transition = 'transform 0.2s, box-shadow 0.2s';
+
+            profileBtn.onmouseover = () => {
+                profileBtn.style.transform = 'translateY(-2px)';
+                profileBtn.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+            };
+            profileBtn.onmouseout = () => {
+                profileBtn.style.transform = 'translateY(0)';
+                profileBtn.style.boxShadow = '0 4px 6px rgba(7, 7, 7, 0.1)';
+            };
+
+            profileBtn.addEventListener('click', () => {
+                window.location.href = 'employee-profile.html';
+            });
+
+            btnContainer.appendChild(reportsBtn);
+            btnContainer.appendChild(profileBtn);
+
+            const messageBar = mainContent.querySelector('.message-bar');
+            if (messageBar) {
+                messageBar.insertAdjacentElement('afterend', btnContainer);
+            } else {
+                mainContent.insertBefore(btnContainer, mainContent.firstChild);
+            }
+
+            // --- NEW: My Applications Table ---
+            const gridSection = mainContent.querySelector('.dashboard-grid');
+            const tableContainer = document.createElement('div');
+            tableContainer.style.marginTop = '20px';
+            tableContainer.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                    <h3 style="margin-bottom: 15px; color: #2c3e50;">My Applications</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: #f8f9fa; text-align: left;">
+                                    <th style="padding: 12px; border-bottom: 2px solid #eee;">Reference</th>
+                                    <th style="padding: 12px; border-bottom: 2px solid #eee;">Borrower</th>
+                                    <th style="padding: 12px; border-bottom: 2px solid #eee;">Amount</th>
+                                    <th style="padding: 12px; border-bottom: 2px solid #eee;">Date</th>
+                                    <th style="padding: 12px; border-bottom: 2px solid #eee;">Status</th>
+                                    <th style="padding: 12px; border-bottom: 2px solid #eee;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="emp-apps-tbody">
+                                <tr><td colspan="6" style="text-align:center; padding: 20px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // Add Event Listener for Action Buttons
+            tableContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+
+                // Try to get index from attribute, or recalculate if needed
+                let index = btn.getAttribute('data-index');
+                const docId = btn.getAttribute('data-doc-id');
+
+                if (index === '-1' || index === null) {
+                    index = loans.findIndex(l => l.id === docId);
+                }
+
+                if (index !== -1 && index !== null) {
+                    if (btn.classList.contains('btn-view-app')) {
+                        window.open(`loan-profile.html?id=${index}`, '_blank');
+                    } else if (btn.classList.contains('btn-edit-app')) {
+                        window.open(`add-loan.html?id=${index}&mode=edit`, '_blank');
+                    }
+                } else {
+                    alert("Loan data is syncing. Please try again in a moment.");
+                }
+            });
+
+            if (gridSection) {
+                gridSection.parentNode.insertBefore(tableContainer, gridSection.nextSibling);
+            } else {
+                mainContent.appendChild(tableContainer);
+            }
+
+            const initEmployeeApps = async () => {
+                const email = localStorage.getItem('currentUserEmail');
+                if (!email) return;
+
+                try {
+                    const { app } = await import('./firebase-config.js');
+                    const { getFirestore, collection, query, where, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                    const db = getFirestore(app);
+
+                    const q = query(collection(db, "loan_applications"), where("employeeEmail", "==", email));
+
+                    onSnapshot(q, (snapshot) => {
+                        const tbody = document.getElementById('emp-apps-tbody');
+                        if (!tbody) return;
+
+                        tbody.innerHTML = '';
+                        if (snapshot.empty) {
+                            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px; color: #777;">No applications found.</td></tr>';
+                            return;
+                        }
+
+                        snapshot.forEach(doc => {
+                            const app = doc.data();
+                            const tr = document.createElement('tr');
+                            let statusColor = '#f39c12'; // Pending
+                            if (app.status === 'Rejected') statusColor = '#e74c3c';
+                            if (app.status === 'Approved' || app.status === 'Active') statusColor = '#27ae60';
+
+                            // Safe Date Formatting
+                            let dateStr = 'N/A';
+                            if (app.date) dateStr = formatDate(app.date);
+                            else if (app.createdAt && app.createdAt.seconds) dateStr = formatDate(new Date(app.createdAt.seconds * 1000));
+                            else if (app.createdAt) dateStr = formatDate(app.createdAt);
+                            else dateStr = formatDate(new Date());
+
+                            const globalIndex = loans.findIndex(l => l.id === doc.id);
+
+                            tr.innerHTML = `
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">${app.loanRef || '-'}</td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">${app.borrower}</td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">₹${parseFloat(app.amount || 0).toFixed(2)}</td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">${dateStr}</td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                    <span style="background:${statusColor}; color:white; padding:4px 8px; border-radius:4px; font-size:0.8rem;">${app.status || 'Pending'}</span>
+                                </td>
+                                <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                                    <button class="btn-view-app" data-index="${globalIndex}" data-doc-id="${doc.id}" style="background: #3498db; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;" title="View"><i class="bi bi-eye"></i></button>
+                                    <button class="btn-edit-app" data-index="${globalIndex}" data-doc-id="${doc.id}" style="background: #f39c12; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="bi bi-pencil"></i></button>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    });
+                } catch (e) {
+                    console.error("Error fetching employee apps:", e);
+                }
+            };
+            initEmployeeApps();
+        }
+    }
+
     // --- PROFILE PAGE LOGIC (profile.html) ---
     const profileForm = document.getElementById('companyProfileForm');
     if (profileForm) {
         const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-        
+
         document.getElementById('cp-name').value = savedProfile.name || '';
         document.getElementById('cp-address').value = savedProfile.address || '';
         document.getElementById('cp-contact').value = savedProfile.contact || '';
@@ -1381,7 +1753,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const file = e.target.files[0];
                 if (file) {
                     const reader = new FileReader();
-                    reader.onload = function(event) {
+                    reader.onload = function (event) {
                         logoDataUrl = event.target.result;
                         if (logoPreview) {
                             logoPreview.src = logoDataUrl;
@@ -1402,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 email: document.getElementById('cp-email').value,
                 logo: logoDataUrl
             };
-            
+
             // Save to Firestore if available
             if (db && firestoreOps.doc && firestoreOps.setDoc) {
                 firestoreOps.setDoc(firestoreOps.doc(db, "settings", "companyProfile"), profile)
@@ -1422,18 +1794,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderActiveLoans = () => {
             const tbody = fullActiveLoansTable.querySelector('tbody');
             tbody.innerHTML = '';
-            
+
             const searchInput = document.getElementById('active-loan-search');
             const query = searchInput ? searchInput.value.toLowerCase() : '';
 
             const today = new Date().toISOString().split('T')[0];
             // Filter out closed loans
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
             let activeLoansList = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
-                                         .filter(l => getNextDueDate(l) !== null);
+                .filter(l => {
+                    if (userRole !== 'Administrator') {
+                        const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
+                        const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
+                        if (!matchesName && !matchesEmail) return false;
+                    }
+                    return getNextDueDate(l) !== null;
+                });
 
             if (query) {
-                activeLoansList = activeLoansList.filter(l => 
-                    l.borrower.toLowerCase().includes(query) || 
+                activeLoansList = activeLoansList.filter(l =>
+                    l.borrower.toLowerCase().includes(query) ||
                     (l.loanRef && l.loanRef.toLowerCase().includes(query))
                 );
             }
@@ -1444,7 +1826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeLoansList.forEach((loan) => {
                     const index = loan.originalIndex;
                     const row = document.createElement('tr');
-                    
+
                     // Calculate EMI for reminder
                     const P = parseFloat(loan.amount) || 0;
                     const R = parseFloat(loan.interest) || 0;
@@ -1476,7 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         renderActiveLoans();
-        
+
         const searchInput = document.getElementById('active-loan-search');
         if (searchInput) {
             searchInput.addEventListener('input', renderActiveLoans);
@@ -1518,20 +1900,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const R = parseFloat(loan.interest) || 0;
             const N = parseInt(loan.tenure) || 1;
             const emi = (P / N) + (P * (R / 100));
-            
+
             let totalPaid = loan.paidInstallments.length * emi;
-            
+
             // Calculate Total Paid from emi_schedule if available
             if (loan.emi_schedule) {
                 totalPaid = Object.values(loan.emi_schedule).reduce((sum, entry) => sum + parseFloat(entry.amountPaid || 0), 0);
             } else {
-            if (loan.partialPayments) {
-                Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
-                    if (!loan.paidInstallments.includes(parseInt(inst))) {
-                        totalPaid += parseFloat(amount);
-                    }
-                });
-            }
+                if (loan.partialPayments) {
+                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                        if (!loan.paidInstallments.includes(parseInt(inst))) {
+                            totalPaid += parseFloat(amount);
+                        }
+                    });
+                }
             }
 
             // Calculate Penalties
@@ -1555,7 +1937,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('summary-end-date').textContent = formatDate(endDate);
             document.getElementById('summary-principal-paid').textContent = '₹' + totalPaid.toFixed(2);
             document.getElementById('summary-principal-outstanding').textContent = '₹' + outstanding.toFixed(2);
-            
+
             const progressBar = document.getElementById('summary-progress-bar');
             progressBar.style.width = progress + '%';
             document.getElementById('summary-progress-text').textContent = progress.toFixed(0) + '% cleared';
@@ -1635,11 +2017,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate Scheduled List
             const scheduleList = document.getElementById('scheduled-list');
             scheduleList.innerHTML = '';
-            
+
             for (let i = 1; i <= N; i++) {
                 const dueDate = new Date(issueDate);
                 dueDate.setMonth(issueDate.getMonth() + i);
-                
+
                 let isPaid = false;
                 let partialAmount = 0;
 
@@ -1653,7 +2035,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const remaining = emi - partialAmount;
-                
+
                 const item = document.createElement('div');
                 item.className = 'list-group-item d-flex justify-content-between align-items-center';
                 item.innerHTML = `
@@ -1664,13 +2046,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="text-end">
                         <div class="fw-bold">₹${emi.toFixed(2)}</div>
                         ${partialAmount > 0 && !isPaid ? `<div class="text-warning small fw-bold">Paid: ₹${partialAmount.toFixed(2)}</div>` : ''}
-                        ${isPaid 
-                            ? '<span class="badge bg-success">PAID</span>' 
-                            : `
+                        ${isPaid
+                        ? '<span class="badge bg-success">PAID</span>'
+                        : `
                                 <button class="btn btn-sm btn-outline-warning mark-modal-partially-paid me-1" data-loan-index="${index}" data-installment="${i}" style="margin-right:5px;">${partialAmount > 0 ? `Pay Remaining (INR ${remaining.toFixed(2)})` : 'Paid Partially'}</button>
                                 <button class="btn btn-sm btn-outline-success mark-modal-paid" data-loan-index="${index}" data-installment="${i}">Mark Paid</button>
                               `
-                        }
+                    }
                     </div>
                 `;
                 scheduleList.appendChild(item);
@@ -1683,19 +2065,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inst = parseInt(e.target.getAttribute('data-installment'));
                     if (confirm('Confirm full payment?')) {
                         if (!loans[lIdx].emi_schedule) loans[lIdx].emi_schedule = {};
-                        
+
                         loans[lIdx].emi_schedule[inst] = {
                             status: 'Paid',
                             amountPaid: emi,
                             date: new Date().toISOString()
                         };
-                        
+
                         saveEmiSchedule(loans[lIdx].id, loans[lIdx].emi_schedule);
 
                         // WhatsApp Receipt
                         if (loans[lIdx].mobile && loans[lIdx].mobile !== 'N/A') {
                             const msg = `Payment Receipt\n\nDear ${loans[lIdx].borrower},\nReceived with thanks: ₹${emi.toFixed(2)}\nTowards: Installment #${inst}\nDate: ${payDate.toLocaleDateString()}\n\nThank you!`;
-                            if(confirm("Open WhatsApp to send receipt?")) {
+                            if (confirm("Open WhatsApp to send receipt?")) {
                                 window.open(`https://wa.me/${loans[lIdx].mobile}?text=${encodeURIComponent(msg)}`, '_blank');
                             }
                         }
@@ -1730,7 +2112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (transBody) {
                 transBody.innerHTML = '';
                 const transactions = [];
-                
+
                 // 1. Loan Disbursed (Start of Timeline)
                 transactions.push({
                     date: issueDate,
@@ -1757,53 +2139,53 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 } else {
                     // Legacy
-                // 2. Full EMI Payments
-                loan.paidInstallments.forEach(inst => {
-                    const d = new Date(issueDate);
-                    d.setMonth(issueDate.getMonth() + parseInt(inst));
-                    
-                    let pDate = null;
-                    if (loan.paidDates && loan.paidDates[inst]) {
-                        pDate = new Date(loan.paidDates[inst]);
-                    }
-                    transactions.push({
-                        date: d,
-                        paidDate: pDate,
-                        type: 'EMI Payment',
-                        amount: emi,
-                        isPayment: true,
-                        desc: `Installment #${inst}`,
-                        inst: inst,
-                        isPartial: false,
-                        source: 'legacy_full'
-                    });
-                });
+                    // 2. Full EMI Payments
+                    loan.paidInstallments.forEach(inst => {
+                        const d = new Date(issueDate);
+                        d.setMonth(issueDate.getMonth() + parseInt(inst));
 
-                // 3. Partial Payments (Only if installment is not fully paid yet)
-                if (loan.partialPayments) {
-                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
-                        if (!loan.paidInstallments.includes(parseInt(inst))) {
-                            const d = new Date(issueDate);
-                            d.setMonth(issueDate.getMonth() + parseInt(inst));
-                            
-                            let pDate = null;
-                            if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) {
-                                pDate = new Date(loan.partialPaymentDates[inst]);
-                            }
-                            transactions.push({
-                                date: d,
-                                paidDate: pDate,
-                                type: 'Partial Payment',
-                                amount: parseFloat(amount),
-                                isPayment: true,
-                                desc: `Part Payment #${inst}`,
-                                inst: inst,
-                                isPartial: true,
-                                source: 'legacy_partial'
-                            });
+                        let pDate = null;
+                        if (loan.paidDates && loan.paidDates[inst]) {
+                            pDate = new Date(loan.paidDates[inst]);
                         }
+                        transactions.push({
+                            date: d,
+                            paidDate: pDate,
+                            type: 'EMI Payment',
+                            amount: emi,
+                            isPayment: true,
+                            desc: `Installment #${inst}`,
+                            inst: inst,
+                            isPartial: false,
+                            source: 'legacy_full'
+                        });
                     });
-                }
+
+                    // 3. Partial Payments (Only if installment is not fully paid yet)
+                    if (loan.partialPayments) {
+                        Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                            if (!loan.paidInstallments.includes(parseInt(inst))) {
+                                const d = new Date(issueDate);
+                                d.setMonth(issueDate.getMonth() + parseInt(inst));
+
+                                let pDate = null;
+                                if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) {
+                                    pDate = new Date(loan.partialPaymentDates[inst]);
+                                }
+                                transactions.push({
+                                    date: d,
+                                    paidDate: pDate,
+                                    type: 'Partial Payment',
+                                    amount: parseFloat(amount),
+                                    isPayment: true,
+                                    desc: `Part Payment #${inst}`,
+                                    inst: inst,
+                                    isPartial: true,
+                                    source: 'legacy_partial'
+                                });
+                            }
+                        });
+                    }
                 }
 
                 // 4. Penalties
@@ -1850,15 +2232,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="${t.isPayment ? 'text-success' : ''}">${t.isPayment ? '-' : ''}₹${t.amount.toFixed(2)}</td>
                         <td class="fw-bold">₹${Math.max(0, runningBal).toFixed(2)}</td>
                         <td class="text-center">
-                            ${t.type !== 'Loan Disbursed' ? 
-                                `<button class="btn btn-sm btn-outline-danger delete-trans-btn" 
+                            ${t.type !== 'Loan Disbursed' ?
+                            `<button class="btn btn-sm btn-outline-danger delete-trans-btn" 
                                     data-source="${t.source || ''}" 
                                     data-inst="${t.inst || ''}" 
                                     data-index="${t.penaltyIndex !== undefined ? t.penaltyIndex : ''}" 
                                     title="Delete Transaction">
                                     <i class="bi bi-trash"></i>
-                                </button>` 
-                                : ''}
+                                </button>`
+                            : ''}
                         </td>
                     `;
                     transBody.appendChild(row);
@@ -1870,7 +2252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const delBtn = e.target.closest('.delete-trans-btn');
                     if (delBtn) {
                         if (!confirm('Are you sure you want to delete this transaction?')) return;
-                        
+
                         const source = delBtn.getAttribute('data-source');
                         const inst = delBtn.getAttribute('data-inst');
                         const index = delBtn.getAttribute('data-index');
@@ -1899,7 +2281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const inst = e.target.getAttribute('data-inst');
                         const isPartial = e.target.getAttribute('data-partial') === 'true';
                         const newDateStr = prompt("Enter new payment date (YYYY-MM-DD):");
-                        
+
                         if (newDateStr) {
                             const newDate = new Date(newDateStr);
                             if (!isNaN(newDate.getTime())) {
@@ -1945,8 +2327,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             </thread>
                             <>
                                 ${Array.from(transBody.rows).map(row => {
-                                    const cells = row.cells;
-                                    return `
+                        const cells = row.cells;
+                        return `
                                         <tr>
                                             <td style="border: 1px solid #ddd; padding: 8px;">${cells[0].innerText}</td>
                                             <td style="border: 1px solid #ddd; padding: 8px;">${cells[1].innerText}</td>
@@ -1955,7 +2337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${cells[4].innerText}</td>
                                         </tr>
                                     `;
-                                }).join('')}
+                    }).join('')}
                             </>
                         </table>
                         <div style="margin-top: 20px; font-size: 10px; text-align: right; color: #999;">
@@ -2021,6 +2403,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const loan = loans[loanIndex];
 
         if (loan) {
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+            const matchesName = (loan.assignedTo === currentUser || loan.createdBy === currentUser);
+            const matchesEmail = (loan.employeeEmail && loan.employeeEmail === currentUserEmail);
+
+            if (userRole !== 'Administrator' && !matchesName && !matchesEmail) {
+                document.body.innerHTML = '<h1 style="text-align:center; color:white; margin-top:50px;">Access Denied</h1>';
+                return;
+            }
+
             // Populate fields
             document.getElementById('vp-borrower').value = loan.borrower || '';
             document.getElementById('vp-dob').value = loan.dob || '';
@@ -2040,8 +2433,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('vp-tenure').value = loan.tenure || '';
             document.getElementById('vp-dueDate').value = loan.dueDate || '';
             document.getElementById('vp-purpose').value = loan.purpose || '';
-            if(loan.loanRef) document.getElementById('vp-loan-ref').textContent = `Ref: ${loan.loanRef}`;
-            
+            if (loan.loanRef) document.getElementById('vp-loan-ref').textContent = `Ref: ${loan.loanRef}`;
+
             // Populate Images
             if (loan.photo) {
                 const img = document.getElementById('vp-photo');
@@ -2092,18 +2485,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderBorrowers = () => {
             tbody.innerHTML = '';
 
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+
             const borrowerStats = {};
             loans.forEach((loan, index) => {
+                const matchesName = (loan.assignedTo === currentUser || loan.createdBy === currentUser);
+                const matchesEmail = (loan.employeeEmail && loan.employeeEmail === currentUserEmail);
+
+                if (userRole !== 'Administrator' && !matchesName && !matchesEmail) return;
                 const name = loan.borrower.trim();
                 // A loan is closed if paid installments >= tenure. Otherwise it's active/pending.
                 const isClosed = getNextDueDate(loan) === null;
 
                 if (!borrowerStats[name]) {
-                    borrowerStats[name] = { 
-                        count: 0, 
-                        total: 0, 
-                        mobile: loan.mobile || 'N/A', 
-                        hasActive: false, 
+                    borrowerStats[name] = {
+                        count: 0,
+                        total: 0,
+                        mobile: loan.mobile || 'N/A',
+                        hasActive: false,
                         originalIndex: index,
                         lastDate: loan.dueDate,
                         refNos: []
@@ -2114,7 +2515,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 borrowerStats[name].count++;
                 borrowerStats[name].total += parseFloat(loan.amount || 0);
-                
+
                 if (!isClosed) {
                     borrowerStats[name].hasActive = true;
                 }
@@ -2137,8 +2538,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const searchInput = document.getElementById('borrower-search');
             if (searchInput && searchInput.value) {
                 const q = searchInput.value.toLowerCase();
-                displayList = displayList.filter(b => 
-                    b.name.toLowerCase().includes(q) || 
+                displayList = displayList.filter(b =>
+                    b.name.toLowerCase().includes(q) ||
                     b.refNos.some(ref => ref.toLowerCase().includes(q))
                 );
             }
@@ -2187,7 +2588,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         renderBorrowers();
-        
+
         const searchInput = document.getElementById('borrower-search');
         if (searchInput) {
             searchInput.addEventListener('input', () => {
@@ -2202,7 +2603,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentPage > 1) { currentPage--; renderBorrowers(); }
         });
         if (nextBtn) nextBtn.addEventListener('click', () => {
-            currentPage++; renderBorrowers(); // Validation happens inside renderBorrowers
+            currentPage++; // Validation happens inside renderBorrowers
         });
 
         // Export CSV Logic
@@ -2237,8 +2638,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const searchInput = document.getElementById('borrower-search');
                 if (searchInput && searchInput.value) {
                     const q = searchInput.value.toLowerCase();
-                    displayList = displayList.filter(b => 
-                        b.name.toLowerCase().includes(q) || 
+                    displayList = displayList.filter(b =>
+                        b.name.toLowerCase().includes(q) ||
                         b.refNos.some(ref => ref.toLowerCase().includes(q))
                     );
                 }
@@ -2275,7 +2676,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = e.target.getAttribute('data-name');
                 if (confirm(`Are you sure you want to delete borrower "${name}" and ALL associated loans? This action cannot be undone.`)) {
                     const loansToDelete = loans.filter(l => l.borrower.trim() === name);
-                    
+
                     // Remove from local array
                     loans = loans.filter(l => l.borrower.trim() !== name);
 
@@ -2290,7 +2691,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-        
+
         document.addEventListener('loans-updated', renderBorrowers);
     }
 
@@ -2300,9 +2701,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderOverdue = () => {
             const tbody = overdueLoansTable.querySelector('tbody');
             tbody.innerHTML = '';
-            
+
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+
             const today = new Date().toISOString().split('T')[0];
             const overdueLoans = loans.filter(l => {
+                if (userRole !== 'Administrator') {
+                    const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
+                    const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
+                    if (!matchesName && !matchesEmail) return false;
+                }
                 const nextDue = getNextDueDate(l);
                 return nextDue && nextDue.toISOString().split('T')[0] < today;
             });
@@ -2336,14 +2746,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         renderOverdue();
         document.addEventListener('loans-updated', renderOverdue);
-        
+
         const tbody = overdueLoansTable.querySelector('tbody');
 
         tbody.addEventListener('click', (e) => {
             if (e.target.classList.contains('send-reminder-btn')) {
                 const mobile = e.target.getAttribute('data-mobile');
                 const name = e.target.getAttribute('data-name');
-                
+
                 if (mobile && mobile !== 'N/A') {
                     const message = `Hello ${name}, this is a reminder that your loan payment is overdue. Please pay as soon as possible.`;
                     window.open(`https://wa.me/${mobile}?text=${encodeURIComponent(message)}`, '_blank');
@@ -2360,8 +2770,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderClosedLoans = () => {
             const tbody = closedLoansTable.querySelector('tbody');
             tbody.innerHTML = '';
-            
-            const closedLoans = loans.filter(l => getNextDueDate(l) === null);
+
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+
+            const closedLoans = loans.filter(l => {
+                if (userRole !== 'Administrator') {
+                    const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
+                    const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
+                    if (!matchesName && !matchesEmail) return false;
+                }
+                return getNextDueDate(l) === null;
+            });
 
             if (closedLoans.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #777;">No closed loans found</td></tr>';
@@ -2390,7 +2811,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         renderClosedLoans();
         document.addEventListener('loans-updated', renderClosedLoans);
-        
+
         const tbody = closedLoansTable.querySelector('tbody');
 
         tbody.addEventListener('click', (e) => {
@@ -2405,7 +2826,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (e.target.classList.contains('download-cert-btn')) {
                 const index = e.target.getAttribute('data-index');
                 const loan = loans[index];
-                
+
                 document.getElementById('cert-borrower').textContent = loan.borrower;
                 document.getElementById('cert-ref').textContent = loan.loanRef || `LN-${parseInt(index) + 1001}`;
                 document.getElementById('cert-amount').textContent = parseFloat(loan.amount).toLocaleString();
@@ -2444,7 +2865,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const R = parseFloat(loan.interest) || 0;
             const N = parseInt(loan.tenure) || 1; // Avoid division by zero
             const emi = (P / N) + (P * (R / 100));
-            
+
             // Render Summary
             let totalPaid = 0;
             if (loan.emi_schedule) {
@@ -2471,7 +2892,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let i = 1; i <= N; i++) {
                 const dueDate = new Date(issueDate);
                 dueDate.setMonth(issueDate.getMonth() + i);
-                
+
                 let isPaid = false;
                 if (loan.emi_schedule && loan.emi_schedule[i]) {
                     isPaid = loan.emi_schedule[i].status === 'Paid';
@@ -2479,17 +2900,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     isPaid = loan.paidInstallments.includes(i);
                 }
                 const row = document.createElement('tr');
-                
+
                 row.innerHTML = `
                     <td>${i}</td>
                     <td>${formatDate(dueDate)}</td>
                     <td>₹${emi.toFixed(2)}</td>
                     <td>${isPaid ? '<span class="paid-badge">PAID</span>' : '<span class="unpaid-badge">UNPAID</span>'}</td>
                     <td>
-                        ${isPaid 
-                            ? '<button class="pay-btn" disabled>Paid</button>' 
-                            : `<button class="pay-btn mark-paid-btn" data-installment="${i}">Mark as Paid</button>`
-                        }
+                        ${isPaid
+                        ? '<button class="pay-btn" disabled>Paid</button>'
+                        : `<button class="pay-btn mark-paid-btn" data-installment="${i}">Mark as Paid</button>`
+                    }
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -2512,7 +2933,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // WhatsApp Receipt
                         if (loan.mobile && loan.mobile !== 'N/A') {
                             const msg = `Payment Receipt\n\nDear ${loan.borrower},\nReceived with thanks: ₹${emi.toFixed(2)}\nTowards: Installment #${installmentNo}\nDate: ${new Date().toLocaleDateString()}\n\nThank you!`;
-                            if(confirm("Open WhatsApp to send receipt?")) {
+                            if (confirm("Open WhatsApp to send receipt?")) {
                                 window.open(`https://wa.me/${loan.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
                             }
                         }
@@ -2753,7 +3174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (downloadNocBtn) {
         downloadNocBtn.addEventListener('click', () => {
             const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-            
+
             if (savedProfile.name) {
                 document.getElementById('noc-company-name').innerText = (savedProfile.name).toUpperCase();
                 document.getElementById('noc-company-sign-name').innerText = savedProfile.name;
@@ -2771,6 +3192,94 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- EMPLOYEE PROFILE PAGE LOGIC (employee-profile.html) ---
+    const empProfileForm = document.getElementById('employeeProfileForm');
+    if (empProfileForm) {
+        const loadEmpProfile = async () => {
+            const email = localStorage.getItem('currentUserEmail');
+            if (!email) {
+                alert("User email not found. Please login again.");
+                return;
+            }
+
+            try {
+                const { app } = await import('./firebase-config.js');
+                const { getFirestore, collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                const db = getFirestore(app);
+
+                // Query 'employees' collection by email to find the document
+                const q = query(collection(db, "employees"), where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const docSnap = querySnapshot.docs[0];
+                    const data = docSnap.data();
+
+                    // Populate fields
+                    document.getElementById('ep-id').value = docSnap.id; // Document ID is the Employee ID
+                    document.getElementById('ep-name').value = data.name || '';
+                    document.getElementById('ep-email').value = data.email || '';
+                    document.getElementById('ep-mobile').value = data.mobile || '';
+                    document.getElementById('ep-designation').value = data.designation || '';
+                    document.getElementById('ep-department').value = data.department || '';
+                    document.getElementById('ep-address').value = data.address || '';
+                    document.getElementById('ep-doj').value = data.doj || '';
+                }
+            } catch (e) {
+                console.error("Error loading profile:", e);
+            }
+        };
+        loadEmpProfile();
+
+        // Edit Profile Logic
+        const editBtn = document.getElementById('edit-profile-btn');
+        const saveBtn = document.getElementById('save-profile-btn');
+        const cancelBtn = document.getElementById('cancel-profile-btn');
+        const mobileInput = document.getElementById('ep-mobile');
+        const addressInput = document.getElementById('ep-address');
+
+        if (editBtn && saveBtn && cancelBtn) {
+            editBtn.addEventListener('click', () => {
+                mobileInput.removeAttribute('readonly');
+                addressInput.removeAttribute('readonly');
+                mobileInput.style.backgroundColor = '#fff';
+                addressInput.style.backgroundColor = '#fff';
+                mobileInput.style.border = '1px solid #3498db';
+                addressInput.style.border = '1px solid #3498db';
+                mobileInput.focus();
+
+                editBtn.style.display = 'none';
+                saveBtn.style.display = 'inline-block';
+                cancelBtn.style.display = 'inline-block';
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                window.location.reload();
+            });
+
+            empProfileForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const docId = document.getElementById('ep-id').value;
+
+                try {
+                    const { app } = await import('./firebase-config.js');
+                    const { getFirestore, doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                    const db = getFirestore(app);
+
+                    await updateDoc(doc(db, "employees", docId), {
+                        mobile: mobileInput.value,
+                        address: addressInput.value
+                    });
+                    alert("Profile updated successfully!");
+                    window.location.reload();
+                } catch (err) {
+                    console.error("Error updating profile:", err);
+                    alert("Failed to update profile: " + err.message);
+                }
+            });
+        }
+    }
+
     // --- CUSTOM FORMS UPLOAD LOGIC (forms.html) ---
     const uploadFormBtn = document.getElementById('upload-form-btn');
     const uploadFormModal = document.getElementById('upload-form-modal');
@@ -2782,7 +3291,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Modal Toggles
         uploadFormBtn.onclick = () => uploadFormModal.style.display = 'block';
         if (closeUploadModal) closeUploadModal.onclick = () => uploadFormModal.style.display = 'none';
-        
+
         window.addEventListener('click', (e) => {
             if (e.target == uploadFormModal) uploadFormModal.style.display = 'none';
         });
@@ -2791,7 +3300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderCustomForms = () => {
             const forms = JSON.parse(localStorage.getItem('customForms')) || [];
             if (!customFormsList) return;
-            
+
             customFormsList.innerHTML = '';
 
             if (forms.length === 0) {
@@ -2832,7 +3341,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.querySelectorAll('.delete-custom-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    if(confirm('Are you sure you want to delete this form?')) {
+                    if (confirm('Are you sure you want to delete this form?')) {
                         const idx = e.target.getAttribute('data-index');
                         forms.splice(idx, 1);
                         localStorage.setItem('customForms', JSON.stringify(forms));
@@ -2850,7 +3359,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const fileInput = document.getElementById('custom-form-file');
                 const file = fileInput.files[0];
-                
+
                 if (file) {
                     if (file.size > 2 * 1024 * 1024) { // 2MB limit check for localStorage sanity
                         alert('File is too large! Please upload a PDF smaller than 2MB.');
@@ -2870,7 +3379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const forms = JSON.parse(localStorage.getItem('customForms')) || [];
                         forms.push(newForm);
-                        
+
                         try {
                             localStorage.setItem('customForms', JSON.stringify(forms));
                             alert('Form uploaded successfully!');
@@ -2887,3 +3396,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+// Function to fetch and display content without page reload
+function loadContent(page) {
+    const contentArea = document.getElementById('content-area');
+
+    // Show a loading indicator
+    if (contentArea) {
+        contentArea.innerHTML = '<div class="loader" style="text-align: center; padding: 50px; font-size: 1.2rem;">Loading...</div>';
+    } else {
+        console.error("Fatal Error: #content-area element not found in the DOM.");
+        return;
+    }
+
+    fetch(page)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}, page: ${page}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            contentArea.innerHTML = html;
+
+            // Re-execute scripts from the loaded content and call page-specific init functions
+            const scripts = contentArea.querySelectorAll("script");
+            scripts.forEach(oldScript => {
+                // IMPORTANT: Do not re-run the main app.js script
+                if (oldScript.src.includes('app.js')) {
+                    oldScript.remove();
+                    return;
+                }
+                const newScript = document.createElement("script");
+                Array.from(oldScript.attributes).forEach(attr => {
+                    newScript.setAttribute(attr.name, attr.value);
+                });
+                if (oldScript.innerHTML) {
+                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                }
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+
+            // Call the specific init function for the loaded page
+            // This is a more robust pattern than general script re-execution
+            if (page === 'manage-loans.html' && typeof initManageLoansPage === 'function') {
+                initManageLoansPage();
+            }
+            // Future pages can be added here
+            // else if (page === 'wallet.html' && typeof initWalletPage === 'function') {
+            //     initWalletPage();
+            // }
+
+        })
+        .catch(error => {
+            console.error('Error loading page:', error);
+            contentArea.innerHTML = `
+                <div class="error-message" style="padding: 20px; text-align: center; background-color: #fff3f3; border: 1px solid #e74c3c; border-radius: 5px; margin: 20px;">
+                    <h2>Oops! Content Failed to Load</h2>
+                    <p>The requested page "<strong>${page}</strong>" could not be loaded.</p>
+                    <p>This might be because the file is missing or there was a network issue.</p>
+                    <p><i>${error.message}</i></p>
+                </div>`;
+        });
+}

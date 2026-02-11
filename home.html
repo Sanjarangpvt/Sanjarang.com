@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Loan Book</title>
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="home.css">
+    <style>
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="main-header">
+        <div class="header-container">
+            <!-- Logo Section -->
+            <a href="#" class="brand-logo">
+                <img src="LOGOS/logo.jpg" alt="Loan Book Logo">
+                <div class="brand-text">
+                    <span class="brand-title">SANJARANG GROUP</span>
+                    <span class="brand-subtitle">business</span>
+                </div>
+            </a>
+
+            <!-- Navigation Section -->
+            <nav class="nav-menu">
+                <a href="#" class="nav-link active">Home</a>
+                <a href="#" class="nav-link">Features</a>
+                <a href="#" id="about-link" class="nav-link">About</a>
+                <a href="#" class="nav-link">Contact</a>
+                <a href="#" id="header-track-btn" class="nav-link">Track Status</a>
+                <a href="login.html" class="btn-header">
+                    <i class="bi bi-box-arrow-in-right"></i> Login
+                </a>
+            </nav>
+
+            <!-- Mobile Menu Button -->
+            <button class="mobile-menu-btn">
+                <i class="bi bi-list"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1>Empower Your Lending Business</h1>
+            <p>The ultimate digital solution for modern loan management. Track loans, manage borrowers, and analyze
+                financial health with enterprise-grade security.</p>
+            <div class="hero-buttons">
+                <a href="login.html" class="btn-primary">Get Started</a>
+                <a href="#features" class="btn-secondary">Learn More</a>
+                <button id="track-btn" class="btn-secondary"
+                    style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.5); color: white; cursor: pointer; margin-left: 10px;">Track
+                    Application</button>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="hero-card">
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <h4>Active Loans</h4>
+                        <div style="color: #2563eb;">1,245</div>
+                    </div>
+                    <div class="icon-box" style="width: 40px; height: 40px; margin: 0; font-size: 1.2rem;">
+                        <i class="bi bi-graph-up"></i>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <h4>Recovery Rate</h4>
+                        <div style="color: #10b981;">98.5%</div>
+                    </div>
+                    <div class="icon-box"
+                        style="width: 40px; height: 40px; margin: 0; font-size: 1.2rem; background: #ecfdf5; color: #10b981;">
+                        <i class="bi bi-pie-chart"></i>
+                    </div>
+                </div>
+                <div
+                    style="background: #f8fafc; padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 15px;">
+                    <div style="width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></div>
+                    <span style="font-weight: 600; color: #475569; font-size: 0.9rem;">System Operational</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+        <div class="section-header">
+            <h2>Why Choose Loan Book?</h2>
+            <p>Everything you need to manage your loans efficiently.</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="icon-box"><i class="bi bi-lightning-charge"></i></div>
+                <h3>Fast Processing</h3>
+                <p>Quickly create loan profiles, generate EMI schedules, and disburse funds with our automated tools.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="icon-box"><i class="bi bi-shield-lock"></i></div>
+                <h3>Secure Data</h3>
+                <p>Your financial data is encrypted and stored securely in the cloud with real-time backups.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon-box"><i class="bi bi-bar-chart-line"></i></div>
+                <h3>Smart Analytics</h3>
+                <p>Visualize your growth with real-time dashboards, financial reports, and recovery insights.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="footer-content">
+            <div class="footer-col">
+                <div class="brand-logo" style="margin-bottom: 20px;">
+                    <img src="LOGOS/logo.jpg" alt="Logo" style="height: 35px; width: 35px; border-radius: 8px;">
+                    <span style="color: white; font-weight: 700; font-size: 1.2rem; margin-left: 10px;">SANJARANG</span>
+                </div>
+                <p style="color: #94a3b8; line-height: 1.6;">Empowering financial growth through smart digital
+                    solutions.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="#">Features</a></li>
+                    <li><a href="#">Pricing</a></li>
+                    <li><a href="#">Security</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="#" id="footer-about-link">About Us</a></li>
+                    <li><a href="#">Careers</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Sanjarang Group. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Company Profile Modal -->
+    <div id="about-modal" class="profile-modal">
+        <div class="profile-modal-content">
+            <span class="close-modal-btn">&times;</span>
+            <div id="modal-profile-content">
+                <img src="LOGOS/logo.jpg" alt="Company Logo" id="modal-logo" style="display: none;">
+                <h2 id="modal-company-name">Company Name</h2>
+                <p id="modal-company-address" style="color: #7f8c8d; margin-top: -10px; margin-bottom: 20px;">Company
+                    Address</p>
+                <hr style="border: 0; height: 1px; background-color: #eee; margin: 20px 0;">
+                <p><strong>Contact:</strong> <span id="modal-company-contact">N/A</span></p>
+                <p><strong>Email:</strong> <span id="modal-company-email">N/A</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Track Loan Modal -->
+    <div id="track-modal" class="profile-modal">
+        <div class="profile-modal-content" style="max-width: 600px;">
+            <span class="close-modal-btn" id="close-track-btn">&times;</span>
+            <div id="track-content">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">Track Loan Status</h2>
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="track-input" placeholder="Enter Mobile Number or Loan Ref ID"
+                        style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; outline: none;">
+                    <button id="search-loan-btn"
+                        style="padding: 12px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Check</button>
+                </div>
+                <div id="track-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const aboutLink = document.getElementById('about-link');
+            const footerAboutLink = document.getElementById('footer-about-link');
+            const aboutModal = document.getElementById('about-modal');
+            const closeModalBtn = document.querySelector('.close-modal-btn');
+
+            // --- Function to fetch and display profile ---
+            const showProfileModal = () => {
+                // Try to get profile from localStorage first
+                const savedProfile = JSON.parse(localStorage.getItem('companyProfile'));
+
+                if (savedProfile) {
+                    document.getElementById('modal-company-name').textContent = savedProfile.name || 'Company Name';
+                    document.getElementById('modal-company-address').textContent = savedProfile.address || 'Company Address';
+                    document.getElementById('modal-company-contact').textContent = savedProfile.contact || 'N/A';
+                    document.getElementById('modal-company-email').textContent = savedProfile.email || 'N/A';
+
+                    const logoEl = document.getElementById('modal-logo');
+                    if (savedProfile.logo) {
+                        logoEl.src = savedProfile.logo;
+                        logoEl.style.display = 'block';
+                    } else {
+                        logoEl.style.display = 'none';
+                    }
+                } else {
+                    console.warn('Company profile not found in localStorage.');
+                }
+                aboutModal.style.display = 'block';
+            };
+
+            // --- Event Listeners ---
+            if (aboutLink) {
+                aboutLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showProfileModal();
+                });
+            }
+
+            if (footerAboutLink) {
+                footerAboutLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showProfileModal();
+                });
+            }
+
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', () => {
+                    aboutModal.style.display = 'none';
+                });
+            }
+
+            window.addEventListener('click', (e) => {
+                if (e.target === aboutModal) {
+                    aboutModal.style.display = 'none';
+                }
+            });
+
+            // --- Track Loan Logic ---
+            const trackBtn = document.getElementById('track-btn');
+            const headerTrackBtn = document.getElementById('header-track-btn');
+            const trackModal = document.getElementById('track-modal');
+            const closeTrackBtn = document.getElementById('close-track-btn');
+            const searchLoanBtn = document.getElementById('search-loan-btn');
+            const trackInput = document.getElementById('track-input');
+            const trackResult = document.getElementById('track-result');
+
+            if (trackBtn && trackModal) {
+                trackBtn.addEventListener('click', () => {
+                    trackModal.style.display = 'block';
+                    trackInput.focus();
+                });
+
+                if (headerTrackBtn) {
+                    headerTrackBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        trackModal.style.display = 'block';
+                        trackInput.focus();
+                    });
+                }
+
+                closeTrackBtn.addEventListener('click', () => {
+                    trackModal.style.display = 'none';
+                    trackResult.innerHTML = '';
+                    trackInput.value = '';
+                });
+
+                window.addEventListener('click', (e) => {
+                    if (e.target === trackModal) {
+                        trackModal.style.display = 'none';
+                    }
+                });
+
+                searchLoanBtn.addEventListener('click', () => {
+                    const query = trackInput.value.trim().toLowerCase();
+                    if (!query) {
+                        alert("Please enter a Mobile Number or Loan Reference ID.");
+                        return;
+                    }
+
+                    // Show Loading
+                    trackResult.innerHTML = `
+                        <div style="text-align: center; padding: 40px;">
+                            <div class="spinner"></div>
+                            <p style="color: #666; margin-top: 10px;">Searching records...</p>
+                        </div>
+                    `;
+                    searchLoanBtn.disabled = true;
+                    searchLoanBtn.textContent = "Searching...";
+                    searchLoanBtn.style.opacity = "0.7";
+
+                    setTimeout(() => {
+                        const loans = JSON.parse(localStorage.getItem('loans')) || [];
+                        const loan = loans.find(l =>
+                            (l.loanRef && l.loanRef.toLowerCase() === query) ||
+                            (l.mobile && l.mobile === query) ||
+                            (l.id && l.id === query)
+                        );
+
+                        searchLoanBtn.disabled = false;
+                        searchLoanBtn.textContent = "Check";
+                        searchLoanBtn.style.opacity = "1";
+
+                        if (loan) {
+                            // Calculate EMI Details
+                            const P = parseFloat(loan.amount) || 0;
+                            const R = parseFloat(loan.interest) || 0;
+                            const N = parseInt(loan.tenure) || 1;
+                            const emi = (P / N) + (P * (R / 100));
+                            const issueDate = new Date(loan.dueDate);
+
+                            // Calculate Outstanding Amount
+                            let totalPaid = 0;
+                            if (loan.emi_schedule) {
+                                Object.values(loan.emi_schedule).forEach(entry => {
+                                    totalPaid += parseFloat(entry.amountPaid || 0);
+                                });
+                            } else {
+                                if (loan.paidInstallments) totalPaid += loan.paidInstallments.length * emi;
+                                if (loan.partialPayments) {
+                                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                                        if (!loan.paidInstallments || !loan.paidInstallments.includes(parseInt(inst))) {
+                                            totalPaid += parseFloat(amount);
+                                        }
+                                    });
+                                }
+                            }
+
+                            let totalPenalties = 0;
+                            if (loan.penalties && Array.isArray(loan.penalties)) {
+                                loan.penalties.forEach(p => totalPenalties += parseFloat(p.amount || 0));
+                            }
+
+                            const totalPayable = (emi * N) + totalPenalties;
+                            const outstanding = Math.max(0, totalPayable - totalPaid);
+
+                            let scheduleHtml = `
+                            <div style="margin-top: 20px; text-align: left; border-top: 1px solid #eee; padding-top: 20px;">
+                                <h3 style="color: #2c3e50; font-size: 1.2rem; margin-bottom: 10px;">Loan Details: ${loan.borrower}</h3>
+                                <p style="color: #555; margin: 5px 0;"><strong>Amount:</strong> ₹${P.toFixed(2)} &nbsp;|&nbsp; <strong>Status:</strong> ${loan.status || 'Active'} &nbsp;|&nbsp; <strong style="color: #e74c3c;">Outstanding:</strong> ₹${outstanding.toFixed(2)}</p>
+                                <div style="max-height: 300px; overflow-y: auto; margin-top: 15px; border: 1px solid #eee; border-radius: 6px;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                        <thead style="background: #f8fafc; position: sticky; top: 0;">
+                                            <tr>
+                                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #eee;">#</th>
+                                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #eee;">Due Date</th>
+                                                <th style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">EMI</th>
+                                                <th style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">Status</th>
+                                                <th style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>`;
+
+                            for (let i = 1; i <= N; i++) {
+                                const dueDate = new Date(issueDate);
+                                dueDate.setMonth(issueDate.getMonth() + i);
+
+                                let isPaid = false;
+                                if (loan.emi_schedule && loan.emi_schedule[i]) isPaid = loan.emi_schedule[i].status === 'Paid';
+                                else if (loan.paidInstallments) isPaid = loan.paidInstallments.includes(i);
+
+                                const statusBadge = isPaid ? '<span style="color: #10b981; font-weight: bold;">Paid</span>' : '<span style="color: #ef4444; font-weight: bold;">Unpaid</span>';
+                                const payButton = isPaid ? '' : `<button style="background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Pay</button>`;
+
+                                scheduleHtml += `<tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">${i}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">${dueDate.toLocaleDateString()}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₹${emi.toFixed(2)}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${statusBadge}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${payButton}</td>
+                            </tr>`;
+                            }
+                            scheduleHtml += `</tbody></table></div></div>`;
+                            trackResult.innerHTML = scheduleHtml;
+                        } else {
+                            trackResult.innerHTML = `<div style="margin-top: 20px; color: #ef4444; font-weight: bold; text-align: center;">No loan found with these details.</div>`;
+                        }
+                    }, 1500);
+                });
+            }
+        });
+    </script>
+</body>
