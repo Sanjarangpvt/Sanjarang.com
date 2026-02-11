@@ -14,24 +14,51 @@ document.addEventListener('DOMContentLoaded', () => {
         const prevPageBtn = document.getElementById('prev-page-btn');
         const nextPageBtn = document.getElementById('next-page-btn');
         const pageIndicator = document.getElementById('page-indicator');
+        const searchInput = document.getElementById('trans-search');
+
+        // Hide Add Funds button for non-admins
+        const userRole = localStorage.getItem('userRole');
+        if (userRole !== 'Administrator' && addFundsBtn) {
+            addFundsBtn.style.display = 'none';
+        }
+
+        // Helper to safely parse any date format (String, ISO, or Firestore Timestamp)
+        const parseSafeDate = (dateInput) => {
+            if (!dateInput) return new Date(0);
+            if (dateInput instanceof Date) return dateInput;
+            if (typeof dateInput === 'object' && dateInput.seconds) {
+                return new Date(dateInput.seconds * 1000);
+            }
+            const d = new Date(dateInput);
+            return isNaN(d.getTime()) ? new Date(0) : d;
+        };
 
         // Helper for date formatting (dd/mm/yyyy)
         const formatDate = (dateInput) => {
-            if (!dateInput) return 'N/A';
-            const date = new Date(dateInput);
-            if (isNaN(date.getTime())) return dateInput;
+            const date = parseSafeDate(dateInput);
+            if (date.getTime() === 0) return 'N/A';
             const day = String(date.getDate()).padStart(2, '0');
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
             return `${day}/${month}/${year}`;
         };
 
-        // Load Transactions
+        // Load Transactions Safely
+        const getLocalJSON = (key) => {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error(`Error parsing localStorage key "${key}":`, e);
+                return [];
+            }
+        };
+
         let walletChart = null;
         let expenseChart = null;
-        let walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
-        let loans = JSON.parse(localStorage.getItem('loans')) || [];
-        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        let walletTransactions = getLocalJSON('walletTransactions');
+        let loans = getLocalJSON('loans');
+        let expenses = getLocalJSON('expenses');
 
         // --- FIRESTORE SETUP ---
         let db;
@@ -44,29 +71,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 db = getFirestore(app);
                 firestoreOps = { collection, addDoc, deleteDoc, doc };
 
+                // Sync Manual Transactions
                 onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
                     walletTransactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                     localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
                     renderWallet();
-                });
+                }, (err) => console.error("Wallet Transactions listener error:", err));
+
+                // Sync Expenses
+                onSnapshot(collection(db, "expenses"), (snapshot) => {
+                    expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                    localStorage.setItem('expenses', JSON.stringify(expenses));
+                    renderWallet();
+                }, (err) => console.error("Expenses listener error:", err));
             } catch (e) { console.error("Firestore init failed:", e); }
         };
         initFirestore();
 
-        // Listen for loan updates (from app.js) to keep wallet in sync
+        // Listen for updates from app.js
         document.addEventListener('loans-updated', () => {
-            loans = JSON.parse(localStorage.getItem('loans')) || [];
+            loans = getLocalJSON('loans');
+            renderWallet();
+        });
+
+        document.addEventListener('wallet-updated', () => {
+            walletTransactions = getLocalJSON('walletTransactions');
+            renderWallet();
+        });
+
+        document.addEventListener('expenses-updated', () => {
+            expenses = getLocalJSON('expenses');
             renderWallet();
         });
 
         let currentPage = 1;
         const rowsPerPage = 15;
 
+        const isValidDate = (d) => d instanceof Date && !isNaN(d);
+
         const getAllTransactions = () => {
             let allTransactions = [];
-            
+
+            const userRole = localStorage.getItem('userRole');
+            const currentUser = localStorage.getItem('currentUser');
+            const currentUserEmail = localStorage.getItem('currentUserEmail');
+
             // 1. Manual Transactions (Deposits/Withdrawals)
-            walletTransactions.forEach((t, index) => {
+            // Only Admins see manual company transactions
+            const displayWalletTrans = (userRole === 'Administrator') ? walletTransactions : [];
+
+            displayWalletTrans.forEach((t, index) => {
                 allTransactions.push({
                     date: t.date,
                     description: t.description,
@@ -81,10 +135,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // 2. Loan Disbursements (Money Out)
-            loans.forEach(loan => {
-                if (loan.amount && loan.dueDate) {
+            // Filter loans for employees
+            const displayLoans = (userRole !== 'Administrator') ? loans.filter(l => {
+                const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
+                const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
+                return matchesName || matchesEmail;
+            }) : loans;
+
+            displayLoans.forEach(loan => {
+                if (loan.status === 'Pending' || loan.status === 'Rejected') return;
+
+                const disbursementDate = parseSafeDate(loan.dueDate);
+                if (disbursementDate.getTime() > 0) {
                     allTransactions.push({
-                        date: loan.dueDate, // Issue Date
+                        date: disbursementDate.toISOString(), // Issue Date
                         description: `Disbursement - ${loan.borrower}`,
                         type: 'Disbursement',
                         amount: parseFloat(loan.amount),
@@ -99,59 +163,95 @@ document.addEventListener('DOMContentLoaded', () => {
                 const R = parseFloat(loan.interest) || 0;
                 const N = parseInt(loan.tenure) || 1;
                 const emi = (P / N) + (P * (R / 100));
-                const issueDate = new Date(loan.dueDate);
 
-                if (loan.paidInstallments && loan.paidInstallments.length > 0) {
-                    loan.paidInstallments.forEach(instNum => {
-                        // Use actual paid date if available, else estimate based on due date
-                        let payDate;
-                        if (loan.paidDates && loan.paidDates[instNum]) {
-                            payDate = new Date(loan.paidDates[instNum]);
-                        } else {
-                            payDate = new Date(issueDate);
-                            payDate.setMonth(issueDate.getMonth() + parseInt(instNum));
+                if (loan.emi_schedule && Object.keys(loan.emi_schedule).length > 0) {
+                    Object.entries(loan.emi_schedule).forEach(([instNum, entry]) => {
+                        if (entry.date && entry.amountPaid) {
+                            allTransactions.push({
+                                date: parseSafeDate(entry.date).toISOString(),
+                                description: `${entry.status === 'Paid' ? 'EMI Received' : 'Partial Payment'} - ${loan.borrower} (#${instNum})`,
+                                type: entry.status === 'Paid' ? 'EMI Payment' : 'Partial Payment',
+                                amount: parseFloat(entry.amountPaid),
+                                isCredit: true,
+                                borrower: loan.borrower,
+                                source: 'loan'
+                            });
                         }
-                        
-                        allTransactions.push({
-                            date: payDate.toISOString(),
-                            description: `EMI Received - ${loan.borrower} (#${instNum})`,
-                            type: 'EMI Payment',
-                            amount: emi,
-                            isCredit: true,
-                            borrower: loan.borrower,
-                            source: 'loan'
-                        });
                     });
-                }
+                } else {
+                    // Legacy Support (Simplified date handling)
+                    if (loan.paidInstallments && loan.paidInstallments.length > 0) {
+                        loan.paidInstallments.forEach(instNum => {
+                            let payDate = loan.paidDates && loan.paidDates[instNum] ? parseSafeDate(loan.paidDates[instNum]) : null;
+                            if (!payDate && disbursementDate.getTime() > 0) {
+                                payDate = new Date(disbursementDate);
+                                payDate.setMonth(disbursementDate.getMonth() + parseInt(instNum));
+                            }
 
-                // 4. Partial Payments
-                if (loan.partialPayments) {
-                    Object.entries(loan.partialPayments).forEach(([instNum, amount]) => {
-                        let payDate;
-                        if (loan.partialPaymentDates && loan.partialPaymentDates[instNum]) {
-                            payDate = new Date(loan.partialPaymentDates[instNum]);
-                        } else {
-                            payDate = new Date(issueDate);
-                            payDate.setMonth(issueDate.getMonth() + parseInt(instNum));
-                        }
-
-                        allTransactions.push({
-                            date: payDate.toISOString(),
-                            description: `Partial Payment - ${loan.borrower} (#${instNum})`,
-                            type: 'Partial Payment',
-                            amount: parseFloat(amount),
-                            isCredit: true,
-                            borrower: loan.borrower,
-                            source: 'loan'
+                            if (payDate && payDate.getTime() > 0) {
+                                allTransactions.push({
+                                    date: payDate.toISOString(),
+                                    description: `EMI Received - ${loan.borrower} (#${instNum})`,
+                                    type: 'EMI Payment',
+                                    amount: emi,
+                                    isCredit: true,
+                                    borrower: loan.borrower,
+                                    source: 'loan'
+                                });
+                            }
                         });
+                    }
+
+                    // 4. Partial Payments
+                    if (loan.partialPayments) {
+                        Object.entries(loan.partialPayments).forEach(([instNum, amount]) => {
+                            let payDate = loan.partialPaymentDates && loan.partialPaymentDates[instNum] ? parseSafeDate(loan.partialPaymentDates[instNum]) : null;
+                            if (!payDate && disbursementDate.getTime() > 0) {
+                                payDate = new Date(disbursementDate);
+                                payDate.setMonth(disbursementDate.getMonth() + parseInt(instNum));
+                            }
+
+                            if (payDate && payDate.getTime() > 0) {
+                                allTransactions.push({
+                                    date: payDate.toISOString(),
+                                    description: `Partial Payment - ${loan.borrower} (#${instNum})`,
+                                    type: 'Partial Payment',
+                                    amount: parseFloat(amount),
+                                    isCredit: true,
+                                    borrower: loan.borrower,
+                                    source: 'loan'
+                                });
+                            }
+                        });
+                    }
+                }
+            });
+
+            // 5. General Expenses (Money Out) - Added for complete wallet view
+            // Only Admins see expenses
+            const displayExpenses = (userRole === 'Administrator') ? expenses : [];
+
+            displayExpenses.forEach((exp, index) => {
+                const expDate = parseSafeDate(exp.date);
+                if (expDate.getTime() > 0) {
+                    allTransactions.push({
+                        date: expDate.toISOString(),
+                        description: exp.description || 'Expense',
+                        type: 'Expense',
+                        amount: parseFloat(exp.amount),
+                        isCredit: false,
+                        borrower: exp.category || '-',
+                        source: 'expense',
+                        originalIndex: index,
+                        id: exp.id
                     });
                 }
             });
 
             // Sort by date descending
             return allTransactions.sort((a, b) => {
-                const dateA = a.date ? new Date(a.date) : new Date(0);
-                const dateB = b.date ? new Date(b.date) : new Date(0);
+                const dateA = parseSafeDate(a.date);
+                const dateB = parseSafeDate(b.date);
                 return dateB - dateA;
             });
         };
@@ -162,12 +262,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Group by Month (YYYY-MM)
             const monthlyData = {};
-            
+
             transactions.forEach(t => {
-                const date = new Date(t.date);
+                const date = parseSafeDate(t.date);
+                if (date.getTime() === 0) return; // Skip invalid dates in chart
+
                 const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
                 const label = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                
+
                 if (!monthlyData[sortKey]) {
                     monthlyData[sortKey] = { income: 0, expense: 0, label: label };
                 }
@@ -217,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const labels = Object.keys(categoryData);
             const data = Object.values(categoryData);
-            
+
             if (expenseChart) expenseChart.destroy();
 
             expenseChart = new Chart(ctx, {
@@ -242,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let balance = 0;
             let totalIncome = 0;
             let totalExpense = 0;
+            let totalDisbursement = 0;
             const allTransactions = getAllTransactions();
             transTableBody.innerHTML = '';
 
@@ -254,10 +357,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     balance -= t.amount;
                     totalExpense += t.amount;
                 }
+                if (t.type === 'Disbursement') {
+                    totalDisbursement += t.amount;
+                }
             });
-            
+
             const totalIncomeEl = document.getElementById('total-income-display');
             const totalExpenseEl = document.getElementById('total-expense-display');
+            const totalDisbursementEl = document.getElementById('total-disbursement-display');
+
 
             // Animation Helper
             const animateValue = (obj, start, end, duration) => {
@@ -278,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
             animateValue(walletBalanceEl, 0, balance, 1500);
             if (totalIncomeEl) animateValue(totalIncomeEl, 0, totalIncome, 1500);
             if (totalExpenseEl) animateValue(totalExpenseEl, 0, totalExpense, 1500);
+            if (totalDisbursementEl) animateValue(totalDisbursementEl, 0, totalDisbursement, 1500);
 
             // Render Chart with all data
             renderChart(allTransactions);
@@ -286,12 +395,27 @@ document.addEventListener('DOMContentLoaded', () => {
             let transactionsToDisplay = allTransactions;
             const startDate = startDateEl.value;
             const endDate = endDateEl.value;
+            const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
+
+            if (searchQuery) {
+                transactionsToDisplay = transactionsToDisplay.filter(t =>
+                    t.borrower.toLowerCase().includes(searchQuery) ||
+                    t.description.toLowerCase().includes(searchQuery) ||
+                    t.type.toLowerCase().includes(searchQuery)
+                );
+            }
 
             if (startDate) {
-                transactionsToDisplay = transactionsToDisplay.filter(t => t.date.split('T')[0] >= startDate);
+                transactionsToDisplay = transactionsToDisplay.filter(t => {
+                    const tDate = parseSafeDate(t.date).toISOString().split('T')[0];
+                    return tDate >= startDate;
+                });
             }
             if (endDate) {
-                transactionsToDisplay = transactionsToDisplay.filter(t => t.date.split('T')[0] <= endDate);
+                transactionsToDisplay = transactionsToDisplay.filter(t => {
+                    const tDate = parseSafeDate(t.date).toISOString().split('T')[0];
+                    return tDate <= endDate;
+                });
             }
 
             // Filter Expenses for Pie Chart
@@ -306,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Pagination Logic
             const totalPages = Math.ceil(transactionsToDisplay.length / rowsPerPage) || 1;
-            
+
             if (currentPage > totalPages) currentPage = totalPages;
             if (currentPage < 1) currentPage = 1;
 
@@ -357,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let target = e.target;
             // Handle clicks on text nodes (e.g., the emoji icon)
             if (target.nodeType === 3) target = target.parentNode;
-            
+
             const btn = target.closest ? target.closest('.delete-trans-btn') : null;
 
             if (btn) {
@@ -389,13 +513,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 let transactionsToExport = getAllTransactions();
                 const startDate = startDateEl.value;
                 const endDate = endDateEl.value;
+                const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
 
                 // Apply the same filter logic for export
+                if (searchQuery) {
+                    transactionsToExport = transactionsToExport.filter(t =>
+                        t.borrower.toLowerCase().includes(searchQuery) ||
+                        t.description.toLowerCase().includes(searchQuery) ||
+                        t.type.toLowerCase().includes(searchQuery)
+                    );
+                }
+
                 if (startDate) {
-                    transactionsToExport = transactionsToExport.filter(t => t.date.split('T')[0] >= startDate);
+                    transactionsToExport = transactionsToExport.filter(t => parseSafeDate(t.date).toISOString().split('T')[0] >= startDate);
                 }
                 if (endDate) {
-                    transactionsToExport = transactionsToExport.filter(t => t.date.split('T')[0] <= endDate);
+                    transactionsToExport = transactionsToExport.filter(t => parseSafeDate(t.date).toISOString().split('T')[0] <= endDate);
                 }
 
                 if (transactionsToExport.length === 0) {
@@ -435,6 +568,14 @@ document.addEventListener('DOMContentLoaded', () => {
             clearFilterBtn.addEventListener('click', () => {
                 startDateEl.value = '';
                 endDateEl.value = '';
+                if (searchInput) searchInput.value = '';
+                currentPage = 1;
+                renderWallet();
+            });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
                 currentPage = 1;
                 renderWallet();
             });
@@ -448,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (nextPageBtn) {
             nextPageBtn.addEventListener('click', () => {
-                currentPage++; 
+                currentPage++;
                 renderWallet();
             });
         }
@@ -481,5 +622,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+
+        // Initial render
+        renderWallet();
     }
 });

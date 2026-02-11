@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,12 +16,19 @@
             window.location.href = 'login.html';
         }
     </script>
+    <style>
+        .card-yellow {
+            background: linear-gradient(135deg, #f1c40f 0%, #f39c12 100%);
+            color: white;
+        }
+    </style>
 </head>
+
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
         <aside class="sidebar collapsed">
-           
+
         </aside>
 
         <!-- Main Content -->
@@ -39,6 +47,7 @@
                     </div>
                     <div class="header-right">
                         <div class="search-wrapper">
+                            <label for="global-search" class="visually-hidden">Search borrowers</label>
                             <input type="text" id="global-search" placeholder="Search borrowers...">
                             <div id="search-results" class="search-dropdown"></div>
                         </div>
@@ -54,7 +63,8 @@
                             </div>
                         </div>
                         <div class="notifications-wrapper">
-                            <button id="notification-btn" class="icon-btn">🔔<span class="badge" id="notification-count">0</span></button>
+                            <button id="notification-btn" class="icon-btn">🔔<span class="badge"
+                                    id="notification-count">0</span></button>
                             <div id="notification-dropdown" class="dropdown-content">
                                 <div class="dropdown-header">Recent Alerts</div>
                                 <ul id="notification-list">
@@ -70,81 +80,138 @@
                 </div>
             </header>
             <main>
-        <!-- Stats Grid -->
-        <section class="dashboard-grid">
-            <div class="card stat-card card-blue">
-                <div class="stat-icon">📄</div>
-                <div class="stat-details">
-                    <h3>Active Loans</h3>
-                    <p class="stat-number" id="stat-active-loans">0</p>
+                <div class="message-bar">
+                    <p id="dashboard-message-text"></p>
                 </div>
-            </div>
-            <div class="card stat-card card-red">
-                <div class="stat-icon">🔒</div>
-                <div class="stat-details">
-                    <h3>Closed Loans</h3>
-                    <p class="stat-number" id="stat-closed-loans">0</p>
-                </div>
-            </div>
-            <div class="card stat-card card-orange">
-                <div class="stat-icon">👥</div>
-                <div class="stat-details">
-                    <h3>Total Borrowers</h3>
-                    <p class="stat-number" id="stat-total-borrowers">0</p>
-                </div>
-            </div>
-            <div class="card stat-card card-green">
-                <div class="stat-icon">💰</div>
-                <div class="stat-details">
-                    <h3>Monthly Revenue</h3>
-                    <p class="stat-number" id="stat-monthly-revenue">₹0.00</p>
-                </div>
-            </div>
-            <div class="card stat-card card-teal">
-                <div class="stat-icon">📈</div>
-                <div class="stat-details">
-                    <h3>Total Interest</h3>
-                    <p class="stat-number" id="stat-total-interest">₹0.00</p>
-                </div>
-            </div>
-            <a href="loan-calculator.html" class="card stat-card card-purple" style="text-decoration: none; color: inherit; cursor: pointer;">
-                <div class="stat-icon">🧮</div>
-                <div class="stat-details">
-                    <h3>Tools</h3>
-                    <p class="stat-number" style="font-size: 1.5rem;">Calculator</p>
-                </div>
-            </a>
-        </section>
+                <div id="content-area">
+                    <!-- Stats Grid -->
+                    <section class="dashboard-grid">
+                        <div class="card stat-card card-yellow" onclick="window.location.href='applications.html'"
+                            style="cursor: pointer;">
+                            <div class="stat-icon">📝</div>
+                            <div class="stat-details">
+                                <h3>Applications</h3>
+                                <p class="stat-number" id="stat-pending-applications">0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-blue">
+                            <div class="stat-icon">📄</div>
+                            <div class="stat-details">
+                                <h3>Active Loans</h3>
+                                <p class="stat-number" id="stat-active-loans">0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-red">
+                            <div class="stat-icon">🔒</div>
+                            <div class="stat-details">
+                                <h3>Closed Loans</h3>
+                                <p class="stat-number" id="stat-closed-loans">0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-orange">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-details">
+                                <h3>Total Borrowers</h3>
+                                <p class="stat-number" id="stat-total-borrowers">0</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-green">
+                            <div class="stat-icon">💰</div>
+                            <div class="stat-details">
+                                <h3>Monthly Revenue</h3>
+                                <p class="stat-number" id="stat-monthly-revenue">₹0.00</p>
+                            </div>
+                        </div>
+                        <div class="card stat-card card-teal">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-details">
+                                <h3>Total Interest</h3>
+                                <p class="stat-number" id="stat-total-interest">₹0.00</p>
+                            </div>
+                        </div>
+                        <a href="loan-calculator.html" class="card stat-card card-purple"
+                            style="text-decoration: none; color: inherit; cursor: pointer;">
+                            <div class="stat-icon">🧮</div>
+                            <div class="stat-details">
+                                <h3>Tools</h3>
+                                <p class="stat-number" style="font-size: 1.5rem;">Calculator</p>
+                            </div>
+                        </a>
 
-        <!-- Charts Row -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 2rem;">
-            <!-- Loan Status Chart -->
-            <section class="card" style="margin-bottom: 0;">
-                <h2>Loan Status Distribution</h2>
-                <div style="height: 400px;">
-                    <canvas id="loanStatusChart"></canvas>
-                </div>
-            </section>
+                        <div class="card" style="grid-column: 1 / -1; margin-bottom: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h2 style="margin: 0; border: none; padding: 0;">Employee Performance</h2>
+                                <a href="manage-staff.html"
+                                    style="background-color: #3498db; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold;">Manage
+                                    Staff</a>
+                            </div>
+                            <div style="overflow-x: auto; margin-top: 15px;">
+                                <table style="width: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>Employee Name</th>
+                                            <th style="text-align: center;">Borrowers Assigned</th>
+                                            <th style="text-align: right;">Total Disbursed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="employee-performance-tbody">
+                                        <tr>
+                                            <td colspan="3" style="text-align:center; padding: 20px; color: #7f8c8d;">
+                                                Loading employee data...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
 
-            <!-- Profit/Loss Chart Section -->
-            <section class="card" style="margin-bottom: 0;">
-                <h2>Profit/Loss (Net Cash Flow - Last 6 Months)</h2>
-                <div style="height: 400px;">
-                    <canvas id="profitLossChart"></canvas>
-                </div>
-            </section>
-        </div>
+                    <div
+                        style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px; margin-bottom: 2rem;">
+                        <!-- Loan Status Chart -->
+                        <section class="card" style="margin-bottom: 0;">
+                            <h2>Loan Status Distribution</h2>
+                            <div style="height: 300px;">
+                                <canvas id="loanStatusChart"></canvas>
+                            </div>
+                        </section>
 
-        <!-- Financial Overview Table -->
-        <section class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f0f2f5; padding-bottom: 0.5rem; margin-bottom: 1rem;">
-                <h2 style="border: none; margin: 0; padding: 0;">Financial Overview</h2>
-                <input type="month" id="fin-overview-filter" style="padding: 5px; border: 1px solid #ddd; border-radius: 4px; width: auto; flex: none;">
-            </div>
-            <div style="height: 400px; position: relative;">
-                <canvas id="financialOverviewChart"></canvas>
-            </div>
-        </section>
+                        <!-- Profit/Loss Chart Section -->
+                        <section class="card" style="margin-bottom: 0;">
+                            <h2>Profit/Loss (Net Cash Flow - Last 6 Months)</h2>
+                            <div style="height: 300px;">
+                                <canvas id="profitLossChart"></canvas>
+                            </div>
+                        </section>
+                        <!-- Financial Overview Table -->
+                        <section class="card">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f0f2f5; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                                <h2 style="border: none; margin: 0; padding: 0;">Financial Overview</h2>
+                                <label for="fin-overview-filter" class="visually-hidden">Filter Financial
+                                    Overview</label>
+                                <input type="month" id="fin-overview-filter"
+                                    style="padding: 5px; border: 1px solid #ddd; border-radius: 4px; width: auto; flex: none;">
+                            </div>
+                            <div style="height: 300px; position: relative;">
+                                <canvas id="financialOverviewChart"></canvas>
+                            </div>
+                        </section>
+                    </div>
+
+
+                </div>
+                <script>
+                    // Load sidebar content dynamically
+                    document.addEventListener('DOMContentLoaded', () => {
+                        const sidebar = document.querySelector('.sidebar');
+                        fetch('sidebar.html')
+                            .then(res => res.text())
+                            .then(data => {
+                                sidebar.innerHTML = data;
+                            })
+                            .catch(err => console.error("Error loading sidebar:", err));
+                    });
+                </script>
             </main>
         </div>
     </div>
@@ -170,4 +237,5 @@
 
     <script src="app.js" defer></script>
 </body>
+
 </html>

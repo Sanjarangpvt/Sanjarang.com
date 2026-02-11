@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add New Loan</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="flatpickr/flatpickr.min.css">
-    <script src="flatpickr/flatpickr.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { background-color: #525659; padding: 20px; }
@@ -122,6 +122,16 @@
                         <div class="paper-col"><div class="field-group"><span class="field-label">PAN Card No</span><input type="text" id="p-pan" class="paper-input"></div></div>
                     </div>
                     <div class="paper-row">
+                        <div class="paper-col">
+                            <div class="field-group">
+                                <span class="field-label">Assign to Staff</span>
+                                <select id="p-assigned-to" class="paper-input">
+                                    <option value="">Select Staff</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="paper-row">
                         <div class="paper-col"><div class="field-group"><span class="field-label">Loan Amount (₹)</span><input type="number" id="p-amount" class="paper-input" step="0.01" required></div></div>
                         <div class="paper-col"><div class="field-group"><span class="field-label">Interest Rate (%)</span><input type="number" id="p-interest" class="paper-input" step="0.01"></div></div>
                         <div class="paper-col"><div class="field-group"><span class="field-label">Tenure (Months)</span><input type="number" id="p-tenure" class="paper-input"></div></div>
@@ -173,5 +183,21 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const assignedToSelect = document.getElementById('p-assigned-to');
+            const adminUsers = JSON.parse(localStorage.getItem('adminUsers')) || [];
+            const staffUsers = adminUsers.filter(user => user.role === 'Staff');
+
+            if (assignedToSelect) {
+                staffUsers.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.username;
+                    option.textContent = user.username;
+                    assignedToSelect.appendChild(option);
+                });
+            }
+        });
+    </script>
 </body>
 </html>

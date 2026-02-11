@@ -248,6 +248,32 @@
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
 
+        .home-btn {
+            position: absolute;
+            top: 25px;
+            left: 30px;
+            text-decoration: none;
+            color: white;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .home-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
         /* Spinner Styles */
         .spinner {
             display: inline-block;
@@ -276,6 +302,9 @@
     </style>
 </head>
 <body>
+    <a href="home.html" class="home-btn">
+        <i class="bi bi-house-fill"></i> Home
+    </a>
     <a href="mailto:support@loanmanager.com" class="contact-btn">
         <i class="bi bi-envelope-fill"></i> Contact Us
     </a>

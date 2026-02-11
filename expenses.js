@@ -146,31 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderExpenses();
             }
 
-            // Link to Wallet: Create Expense Transaction (Deducts from Balance)
-            let walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
-            walletTransactions.push({
-                date: new Date(newExpense.date).toISOString(),
-                type: 'Expense',
-                amount: newExpense.amount,
-                description: `${newExpense.description} (${newExpense.category})`
-            });
-            localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
-
-            // Sync Wallet Transaction to Firestore
-            (async () => {
-                try {
-                    const { app } = await import('./firebase-config.js');
-                    const { getFirestore, collection, addDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-                    const db = getFirestore(app);
-                    await addDoc(collection(db, "wallet_transactions"), {
-                        date: new Date(newExpense.date).toISOString(),
-                        type: 'Expense',
-                        amount: parseFloat(newExpense.amount),
-                        description: `${newExpense.description} (${newExpense.category})`
-                    });
-                } catch (e) { console.log("Firestore wallet sync error", e); }
-            })();
-
             expenseModal.style.display = 'none';
             expenseForm.reset();
         });

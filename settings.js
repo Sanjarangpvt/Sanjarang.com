@@ -45,6 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof renderAdmins === 'function') renderAdmins();
             });
 
+            // Sync Dashboard Message
+            onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
+                const messageInput = document.getElementById('dashboard-message');
+                if (docSnap.exists() && messageInput) {
+                    messageInput.value = docSnap.data().text || '';
+                }
+            });
+
         } catch (e) { console.error("Firestore init failed:", e); }
     };
     initFirestore();
@@ -129,6 +137,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const transId = trans.id || `trans_${Date.now()}_${index}`;
                     const transRef = doc(db, "wallet_transactions", transId);
                     addToBatch(transRef, sanitize(trans));
+                });
+
+                // Sync EMI Schedules
+                loans.forEach((loan) => {
+                    if (loan.emi_schedule && loan.id) {
+                        try {
+                            const schedRef = doc(db, "emi_schedule", loan.id);
+                            addToBatch(schedRef, sanitize(loan.emi_schedule));
+                        } catch (e) { console.error("Error processing schedule:", e); }
+                    }
                 });
 
                 admins.forEach((admin, index) => {
@@ -257,6 +275,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         addToBatch(transRef, sanitize(trans));
                     });
 
+                    // Sync EMI Schedules
+                    loans.forEach((loan) => {
+                        if (loan.emi_schedule && loan.id) {
+                            try {
+                                const schedRef = doc(db, "emi_schedule", loan.id);
+                                addToBatch(schedRef, sanitize(loan.emi_schedule));
+                            } catch (e) { console.error("Error processing schedule:", e); }
+                        }
+                    });
+
                     admins.forEach((admin, index) => {
                         const adminRef = doc(db, "admin_users", admin.username);
                         addToBatch(adminRef, sanitize(admin));
@@ -328,18 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        });
-    }
-
-    // 1. Data Management (Clear Data)
-    const clearDataBtn = document.getElementById('clearDataBtn');
-    if (clearDataBtn) {
-        clearDataBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to delete ALL loan data? This action cannot be undone.')) {
-                localStorage.removeItem('loans');
-                alert('All data has been cleared successfully.');
-                window.location.reload();
-            }
         });
     }
 
@@ -907,6 +923,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (appLayout) appLayout.style.backgroundColor = '';
 
                 alert('Theme settings have been reset.');
+            }
+        });
+    }
+
+    // --- DASHBOARD MESSAGE LOGIC ---
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('dashboard-message');
+
+    if (messageInput) {
+        // Pre-fill from local storage as a fallback
+        const savedMessage = localStorage.getItem('dashboardMessage');
+        if (savedMessage) {
+            messageInput.value = savedMessage;
+        }
+        // Firestore will overwrite this if it connects successfully via the listener in initFirestore
+    }
+
+    if (messageForm) {
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            
+            if (db && firestoreOps.setDoc && firestoreOps.doc) {
+                try {
+                    await firestoreOps.setDoc(firestoreOps.doc(db, "settings", "dashboardMessage"), { text: message, updatedAt: new Date().toISOString() });
+                    alert('Message saved successfully!');
+                } catch (error) {
+                    console.error("Error saving message to Firestore:", error);
+                    alert('Failed to save message to cloud. Check console for details.');
+                }
+            } else {
+                console.warn('Firestore not available. Falling back to local storage.');
+                localStorage.setItem('dashboardMessage', message);
+                alert('Message saved locally. It may not be visible to all users.');
             }
         });
     }

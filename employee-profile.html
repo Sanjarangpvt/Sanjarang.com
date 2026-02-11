@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - Employee</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar collapsed"></aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="custom-header-box">
+                <div class="header-container">
+                    <div class="header-left">
+                        <button id="sidebar-toggle" class="icon-btn">☰</button>
+                        <div class="header-title-group">
+                            <h1>My Profile</h1>
+                            <div class="user-profile">
+                                <span class="user-name">Employee</span>
+                                <span class="user-role">Staff</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <div id="current-datetime"></div>
+                    </div>
+                </div>
+            </header>
+            <main>
+                <section class="card" style="max-width: 600px; margin: 0 auto;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #141414; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h2 style="margin: 0; border: none; padding: 0;">Personal Details</h2>
+                        <a href="Employee-dashboard.html"
+                            style="text-decoration: none; color: #248ed4; font-weight: bold; display: flex; align-items: center; gap: 5px;">
+                            <i class="bi bi-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+
+                    <form id="employeeProfileForm">
+                        <div class="form-group" style="align-items: center; margin-bottom:15px;">
+                            <label style="font-weight: bold; width: 150px; color: #5a5a5a;">Employee ID</label>
+                            <input type="text" id="ep-id" readonly
+                                style="background-color: hsl(312, 71%, 93%); color: #000000; font-weight: bold; margin-inline-start : 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Full Name</label>
+                            <input type="text" id="ep-name" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-inline-start : 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Designation</label>
+                            <input type="text" id="ep-designation" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Department</label>
+                            <input type="text" id="ep-department" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Date of Joining</label>
+                            <input type="text" id="ep-doj" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Email</label>
+                            <input type="email" id="ep-email" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Contact Number</label>
+                            <input type="text" id="ep-mobile" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:15px">
+                            <label style="font-weight: bold; width: 150px; color: #555;">Address</label>
+                            <input type="text" id="ep-address" readonly
+                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
+                        </div>
+                        <div class="form-actions" style="margin-top: 20px; text-align: right;">
+                            <button type="button" id="edit-profile-btn" style="background-color: #f39c12;">Edit
+                                Profile</button>
+                            <button type="submit" id="save-profile-btn"
+                                style="display: none; background-color: #27ae60;">Save Changes</button>
+                            <button type="button" id="cancel-profile-btn"
+                                style="display: none; background-color: #95a5a6;">Cancel</button>
+                        </div>
+                    </form>
+                </section>
+            </main>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

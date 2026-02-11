@@ -1,93 +1,138 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const loans = JSON.parse(localStorage.getItem('loans')) || [];
-    const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+import { app } from './firebase-config.js';
+import { getFirestore, collection, getDocs, query, where, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const db = getFirestore(app);
+    const currentUserEmail = localStorage.getItem('currentUserEmail');
+    const userRole = localStorage.getItem('userRole');
 
     // Helper for date formatting
     const formatDate = (dateInput) => {
         if (!dateInput) return 'N/A';
+        // Handle Firestore Timestamps
+        if (dateInput.toDate) {
+            dateInput = dateInput.toDate();
+        }
         const date = new Date(dateInput);
-        if (isNaN(date.getTime())) return dateInput;
+        if (isNaN(date.getTime())) return String(dateInput); // Return original if invalid
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
         return `${day}/${month}/${year}`;
     };
 
+    // Fetch Loans
+    const fetchLoans = async () => {
+        if (!currentUserEmail) {
+            console.warn("No current user email found in localStorage.");
+            return [];
+        }
+        try {
+            const loansRef = collection(db, "loans");
+            let q;
+
+            // Allow Admin to see all loans
+            if (userRole === 'Administrator') {
+                q = query(loansRef);
+            } else {
+                q = query(loansRef, where("employeeEmail", "==", currentUserEmail));
+            }
+
+            const querySnapshot = await getDocs(q);
+
+            const loanPromises = querySnapshot.docs.map(async (docSnapshot) => {
+                const loanData = { id: docSnapshot.id, ...docSnapshot.data() };
+
+                // Fetch EMI Schedule for this loan
+                try {
+                    const scheduleRef = doc(db, "emi_schedule", loanData.id);
+                    const scheduleSnap = await getDoc(scheduleRef);
+
+                    if (scheduleSnap.exists()) {
+                        loanData.emi_schedule = scheduleSnap.data();
+                    }
+                } catch (err) {
+                    console.warn(`Could not fetch schedule for loan ${loanData.id}`, err);
+                }
+
+                return loanData;
+            });
+
+            const loans = await Promise.all(loanPromises);
+            return loans;
+
+        } catch (error) {
+            console.error("Error fetching loans:", error);
+            return [];
+        }
+    };
+
+    const myLoans = await fetchLoans();
+
+    // Fetch Employees Mapping
+    const fetchEmployees = async () => {
+        try {
+            const snapshot = await getDocs(collection(db, "employees"));
+            const empMap = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.email) empMap[data.email] = data.name || data.email;
+            });
+            return empMap;
+        } catch (e) {
+            console.error("Error fetching employees:", e);
+            return {};
+        }
+    };
+    const employeeMap = await fetchEmployees();
+
     // 1. Aggregate Data
     let totalDisbursed = 0;
     let totalRepaid = 0;
-    let totalExpenses = 0;
     const timeline = [];
 
     // Process Loans (Disbursements)
-    loans.forEach(loan => {
+    myLoans.forEach(loan => {
+        if (loan.status === 'Pending' || loan.status === 'Rejected') return;
+
         const amount = parseFloat(loan.amount) || 0;
         totalDisbursed += amount;
-        
+
+        const disbursementDate = loan.dueDate ? (loan.dueDate.toDate ? loan.dueDate.toDate() : new Date(loan.dueDate)) : new Date();
+
+
         timeline.push({
-            date: new Date(loan.dueDate),
+            date: disbursementDate,
             description: `Loan Disbursed - ${loan.borrower}`,
             type: 'Disbursement',
             amount: -amount,
             color: '#3498db'
         });
 
-        // Process Repayments
-        const P = amount;
-        const R = parseFloat(loan.interest) || 0;
-        const N = parseInt(loan.tenure) || 1;
-        const emi = (P / N) + (P * (R / 100));
-        const issueDate = new Date(loan.dueDate);
+        if (loan.emi_schedule) {
+            Object.entries(loan.emi_schedule).forEach(([inst, entry]) => {
+                if (entry.status === 'Paid') {
+                    const val = parseFloat(entry.amountPaid) || 0;
+                    totalRepaid += val;
 
-        if (loan.paidInstallments) {
-            loan.paidInstallments.forEach(inst => {
-                let payDate = new Date(issueDate);
-                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                if (loan.paidDates && loan.paidDates[inst]) payDate = new Date(loan.paidDates[inst]);
-                
-                totalRepaid += emi;
-                timeline.push({
-                    date: payDate,
-                    description: `EMI Received - ${loan.borrower} (#${inst})`,
-                    type: 'Repayment',
-                    amount: emi,
-                    color: '#27ae60'
-                });
-            });
-        }
-
-        if (loan.partialPayments) {
-            Object.entries(loan.partialPayments).forEach(([inst, amt]) => {
-                let payDate = new Date(issueDate);
-                payDate.setMonth(issueDate.getMonth() + parseInt(inst));
-                if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) payDate = new Date(loan.partialPaymentDates[inst]);
-                
-                const val = parseFloat(amt);
-                totalRepaid += val;
-                timeline.push({
-                    date: payDate,
-                    description: `Partial Payment - ${loan.borrower} (#${inst})`,
-                    type: 'Repayment',
-                    amount: val,
-                    color: '#27ae60'
-                });
+                    if (entry.date) {
+                        const paymentDate = entry.date.toDate ? entry.date.toDate() : new Date(entry.date);
+                        timeline.push({
+                            date: paymentDate,
+                            description: `EMI Received - ${loan.borrower} (#${inst})`,
+                            type: 'Repayment',
+                            amount: val,
+                            color: '#27ae60'
+                        });
+                    }
+                }
             });
         }
     });
 
-    // Process Expenses
-    expenses.forEach(exp => {
-        const amount = parseFloat(exp.amount) || 0;
-        totalExpenses += amount;
-        
-        timeline.push({
-            date: new Date(exp.date),
-            description: `Expense - ${exp.description} (${exp.category})`,
-            type: 'Expense',
-            amount: -amount,
-            color: '#e74c3c'
-        });
-    });
+    // Calculate Net Balance & Incentive
+    const netBalance = totalDisbursed - totalRepaid;
+    const incentive = totalRepaid * 0.02;
 
     // Sort Timeline
     timeline.sort((a, b) => b.date - a.date);
@@ -101,9 +146,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const progress = Math.min((timestamp - startTimestamp) / duration, 1);
             const easeProgress = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
             const currentVal = start + (end - start) * easeProgress;
-            obj.textContent = '₹' + currentVal.toFixed(2);
+            obj.textContent = '₹' + currentVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             if (progress < 1) window.requestAnimationFrame(step);
-            else obj.textContent = '₹' + end.toFixed(2);
+            else obj.textContent = '₹' + end.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
         window.requestAnimationFrame(step);
     };
@@ -111,56 +156,100 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Update Summary Cards
     animateValue(document.getElementById('rep-total-disbursed'), 0, totalDisbursed, 1500);
     animateValue(document.getElementById('rep-total-repaid'), 0, totalRepaid, 1500);
-    animateValue(document.getElementById('rep-total-expenses'), 0, totalExpenses, 1500);
-    
-    const netBalance = totalRepaid - totalDisbursed - totalExpenses;
+
     const netEl = document.getElementById('rep-net-balance');
-    netEl.style.color = netBalance >= 0 ? '#27ae60' : '#e74c3c';
-    animateValue(netEl, 0, netBalance, 1500);
+    if (netEl) {
+        netEl.style.color = '#f39c12';
+        animateValue(netEl, 0, netBalance, 1500);
+    }
+
+    const incEl = document.getElementById('rep-incentive');
+    if (incEl) animateValue(incEl, 0, incentive, 1500);
 
     // 3. Render Table
     const tbody = document.getElementById('report-table-body');
-    tbody.innerHTML = '';
-    
-    timeline.forEach(item => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td style="padding: 10px; border-bottom: 1px solid #eee;">${formatDate(item.date)}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.description}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #eee; color: ${item.color}; font-weight: bold;">${item.type}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; color: ${item.amount >= 0 ? '#27ae60' : '#e74c3c'}; font-weight: bold;">
-                ${item.amount >= 0 ? '+' : ''}₹${Math.abs(item.amount).toFixed(2)}
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
+    if (tbody) {
+        tbody.innerHTML = ''; // Clear previous entries
+        if (timeline.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td colspan="4" style="text-align: center; padding: 20px;">No financial activity found.</td>`;
+            tbody.appendChild(row);
+        } else {
+            timeline.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${formatDate(item.date)}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.description}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; color: ${item.color}; font-weight: bold;">${item.type}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; color: ${item.amount >= 0 ? '#27ae60' : '#e74c3c'}; font-weight: bold;">
+                        ${item.amount >= 0 ? '+' : ''}₹${Math.abs(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
 
-    // 4. Render Chart
-    const ctx = document.getElementById('reportChart');
-    if (ctx) {
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Total Disbursed', 'Total Repaid', 'Total Expenses'],
-                datasets: [{
-                    label: 'Amount (₹)',
-                    data: [totalDisbursed, totalRepaid, totalExpenses],
-                    backgroundColor: ['#3498db', '#27ae60', '#e74c3c'],
-                    borderRadius: 5
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    title: { display: true, text: 'Financial Summary' }
-                },
-                scales: {
-                    y: { beginAtZero: true }
+
+    // 4. Render Employee Incentive Table (Replaces Chart)
+    const incentiveBody = document.getElementById('incentive-table-body');
+    if (incentiveBody) {
+        // Calculate Monthly Incentives
+        const incentiveData = {}; // key: YYYY-MM_email
+
+        myLoans.forEach(loan => {
+            if (!loan.emi_schedule) return;
+
+            // Get Employee Name
+            const email = loan.employeeEmail || 'unknown';
+            const empName = employeeMap[email] || email || 'Unknown Employee';
+
+            Object.values(loan.emi_schedule).forEach(payment => {
+                if (payment.status === 'Paid' && payment.date) {
+                    const amount = parseFloat(payment.amountPaid) || 0;
+                    if (amount <= 0) return;
+
+                    // Parse Date
+                    let pDate;
+                    if (payment.date.toDate) pDate = payment.date.toDate();
+                    else pDate = new Date(payment.date);
+
+                    if (isNaN(pDate.getTime())) return;
+
+                    const monthKey = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+                    const groupKey = `${monthKey}_${email}`;
+
+                    if (!incentiveData[groupKey]) {
+                        incentiveData[groupKey] = {
+                            monthRaw: monthKey,
+                            monthDisplay: pDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                            empName: empName,
+                            totalCollected: 0
+                        };
+                    }
+                    incentiveData[groupKey].totalCollected += amount;
                 }
-            }
+            });
         });
+
+        const sortedIncentives = Object.values(incentiveData).sort((a, b) => b.monthRaw.localeCompare(a.monthRaw));
+
+        incentiveBody.innerHTML = '';
+        if (sortedIncentives.length === 0) {
+            incentiveBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No incentive data found.</td></tr>';
+        } else {
+            sortedIncentives.forEach(item => {
+                const incentive = item.totalCollected * 0.02;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.monthDisplay}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.empName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">₹${item.totalCollected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; color: #27ae60; font-weight: bold;">₹${incentive.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                `;
+                incentiveBody.appendChild(row);
+            });
+        }
     }
 
     // 5. Download CSV
