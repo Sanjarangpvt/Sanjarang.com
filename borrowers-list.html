@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Borrower List</title>
     <link rel="stylesheet" href="style.css">
-    <style>
+    <script>
+        // --- ACCESS CONTROL ---
+        // This script acts as a gatekeeper. If the user is not logged in,
+        // it immediately redirects them to the login page before any content loads.
+        if (localStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+    </script>
+   <style>
         body { background-color: white; padding: 20px; max-width: 1000px; margin: 0 auto; }
         h1 { text-align: center; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
         .print-btn { display: block; margin: 20px auto; padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; width: fit-content; text-decoration: none; text-align: center;}

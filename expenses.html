@@ -10,6 +10,14 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
+ <script>
+        // --- ACCESS CONTROL ---
+        // This script acts as a gatekeeper. If the user is not logged in,
+        // it immediately redirects them to the login page before any content loads.
+        if (localStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+    </script>
 <body>
     <div class="app-layout">
         <!-- Sidebar -->

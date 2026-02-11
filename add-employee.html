@@ -7,6 +7,14 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+     <script>
+        // --- ACCESS CONTROL ---
+        // This script acts as a gatekeeper. If the user is not logged in,
+        // it immediately redirects them to the login page before any content loads.
+        if (localStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+    </script>
     <style>
         body { background-color: #f0f2f5; padding: 40px 20px; max-width: 600px; margin: 0 auto; }
         .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }

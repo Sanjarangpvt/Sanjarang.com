@@ -363,27 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch((error) => {
                         console.error("Firebase Auth failed:", error);
-                        // Fallback: Check Local Storage (Offline Mode)
-                        const localEmployees = JSON.parse(localStorage.getItem('employees')) || [];
-                        // Check by Email
-                        const localEmp = localEmployees.find(e => e.email === username);
-
-                        if (localEmp) {
-                            if (localEmp.password === password) {
-                                // STRICT ROLE CHECK LOCALLY
-                                const employeeRole = (localEmp.role || '').toLowerCase();
-                                if (employeeRole === 'employee') {
-                                    console.log("Employee login successful via local storage");
-                                    handleLoginSuccess(localEmp.name, localEmp.designation || 'Staff', localEmp.email);
-                                } else {
-                                    handleLoginError("Access Denied: You do not have the required 'employee' role.");
-                                }
-                            } else {
-                                handleLoginError('Incorrect password');
-                            }
+                        if (error.code === 'auth/invalid-credential') {
+                            handleLoginError('Invalid email or password.');
                         } else {
-                            console.warn("Login Failed: User not found in Firebase or LocalStorage.");
-                            handleLoginError('Invalid email or password');
+                            handleLoginError('Login failed. Check your network connection or credentials.');
                         }
                     });
             }

@@ -8,7 +8,15 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <style>
+    <script>
+        // --- ACCESS CONTROL ---
+        // This script acts as a gatekeeper. If the user is not logged in,
+        // it immediately redirects them to the login page before any content loads.
+        if (localStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+    </script>
+   <style>
         body { background-color: #525659; padding: 20px; }
         .paper-wrapper { display: block !important; margin: 0 auto; max-width: 210mm; }
         .btn-back { position: absolute; top: 20px; left: 20px; color: white; text-decoration: none; font-weight: bold; font-family: sans-serif; }

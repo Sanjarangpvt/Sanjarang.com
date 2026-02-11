@@ -511,6 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobile: document.getElementById('emp-mobile').value,
                 email: document.getElementById('emp-email').value,
                 address: document.getElementById('emp-address').value,
+                role: 'employee', // Add default role for employees to pass login check
                 createdAt: new Date().toISOString()
             };
 
@@ -579,14 +580,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const adminProfileForm = document.getElementById('adminProfileForm');
     if (adminProfileForm) {
-        const currentUser = localStorage.getItem('currentUser') || 'admin';
+        const currentUserEmail = localStorage.getItem('currentUserEmail') || '';
+        const currentUsername = localStorage.getItem('currentUser') || 'admin';
         const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
         
         // Find current user data
-        let userObj = admins.find(a => a.username.toLowerCase() === currentUser.toLowerCase());
+        let userObj = admins.find(a => a.email && a.email.toLowerCase() === currentUserEmail.toLowerCase());
         
         // Pre-fill form
-        document.getElementById('profile-username').value = currentUser;
+        document.getElementById('profile-username').value = currentUsername;
         if (userObj) {
             document.getElementById('profile-email').value = userObj.email || '';
             document.getElementById('profile-role').value = userObj.role || 'Administrator';
@@ -599,31 +601,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const newPassword = document.getElementById('profile-password').value;
             const newRole = document.getElementById('profile-role').value;
 
-            if (!newUsername) { alert('Username is required'); return; }
+            if (!newUsername || !newEmail) { alert('Username and Email are required'); return; }
 
             let currentAdmins = JSON.parse(localStorage.getItem('adminUsers')) || [];
             
-            // Check if new username is taken by SOMEONE ELSE
-            const taken = currentAdmins.some(a => a.username.toLowerCase() === newUsername.toLowerCase() && a.username.toLowerCase() !== currentUser.toLowerCase());
-            if (taken) { alert('Username already taken.'); return; }
+            // Check if new email is taken by SOMEONE ELSE
+            const isEmailTaken = currentAdmins.some(a => a.email && a.email.toLowerCase() === newEmail.toLowerCase() && a.email.toLowerCase() !== currentUserEmail.toLowerCase());
+            if (isEmailTaken) { alert('This email is already in use by another admin.'); return; }
             
             // Find index of current user in storage
-            let targetIndex = currentAdmins.findIndex(a => a.username.toLowerCase() === currentUser.toLowerCase());
+            let targetIndex = currentAdmins.findIndex(a => a.email && a.email.toLowerCase() === currentUserEmail.toLowerCase());
             let adminData = targetIndex !== -1 ? currentAdmins[targetIndex] : {};
             
             adminData.username = newUsername;
             adminData.email = newEmail;
             adminData.role = newRole;
             if (newPassword) adminData.password = newPassword;
-            if (!adminData.password && targetIndex === -1) adminData.password = 'admin'; // Default
+            if (!adminData.password && targetIndex === -1) adminData.password = 'password'; // Default for safety
 
             if (db && firestoreOps.setDoc) {
-                // If username changed, we might want to delete old doc and create new, but for simplicity let's just save to new ID
-                // Ideally we delete the old one if username changed.
-                if (currentUser !== newUsername && firestoreOps.deleteDoc) {
-                     await firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", currentUser));
+                // If the email (which is the document ID) has changed, we must delete the old document
+                // and create a new one.
+                if (currentUserEmail && currentUserEmail.toLowerCase() !== newEmail.toLowerCase() && firestoreOps.deleteDoc) {
+                     await firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", currentUserEmail));
                 }
-                await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", newUsername), adminData);
+                // Save the document with the new email as the ID
+                await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", newEmail), adminData);
             } else {
                 if (targetIndex === -1) currentAdmins.push(adminData);
                 else currentAdmins[targetIndex] = adminData;
@@ -631,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             localStorage.setItem('currentUser', newUsername);
+            localStorage.setItem('currentUserEmail', newEmail);
             
             alert('Profile updated successfully.');
             window.location.reload();
@@ -667,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
             admins.forEach((admin, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${admin.username}</td>
+                    <td>${admin.email || admin.username}</td>
                     <td>${admin.role || 'Administrator'}</td>
                     <td>
                         <button class="delete-admin-btn" data-index="${index}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
@@ -683,7 +687,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const idx = e.target.getAttribute('data-index');
                     const admin = admins[idx];
                     if (db && firestoreOps.deleteDoc) {
-                        firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", admin.username || admin.firestoreId));
+                        // Use email as the ID to delete
+                        firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", admin.email || admin.username || admin.firestoreId));
                     } else {
                         admins.splice(idx, 1);
                         localStorage.setItem('adminUsers', JSON.stringify(admins));
@@ -698,21 +703,22 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAdmins();
         createAdminForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const u = document.getElementById('admin-username').value.trim();
+            const email = document.getElementById('admin-username').value.trim(); // This input should be for the admin's email
             const p = document.getElementById('admin-password').value;
             const r = document.getElementById('admin-role').value;
             
-            if(u && p) {
+            if(email && p) {
                 const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
-                if (admins.some(a => a.username.toLowerCase() === u.toLowerCase()) || u.toLowerCase() === 'admin') {
-                    alert('Username already exists!');
+                if (admins.some(a => a.email && a.email.toLowerCase() === email.toLowerCase())) {
+                    alert('An admin with this email already exists!');
                     return;
                 }
                 
                 if (db && firestoreOps.setDoc) {
-                    await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", u), { username: u, password: p, role: r });
+                    // Use the email as the document ID and also save it in the document
+                    await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", email), { username: email, email: email, password: p, role: r });
                 } else {
-                    admins.push({ username: u, password: p, role: r });
+                    admins.push({ username: email, email: email, password: p, role: r });
                     localStorage.setItem('adminUsers', JSON.stringify(admins));
                     renderAdmins();
                 }
