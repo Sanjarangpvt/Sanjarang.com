@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-     <script>
+    <script>
         // --- ACCESS CONTROL ---
         // This script acts as a gatekeeper. If the user is not logged in,
         // it immediately redirects them to the login page before any content loads.
@@ -16,19 +17,71 @@
         }
     </script>
     <style>
-        body { background-color: #f0f2f5; padding: 40px 20px; max-width: 600px; margin: 0 auto; }
-        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button[type="submit"] { width: 100%; margin-top: 20px; background-color: #27ae60; color: white; border: none; padding: 12px; border-radius: 4px; font-size: 16px; cursor: pointer; }
-        button[type="submit"]:hover { background-color: #219150; }
+        body {
+            background-color: #f0f2f5;
+            padding: 40px 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            margin-top: 20px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #219150;
+        }
     </style>
 </head>
+
 <body>
-    <a href="settings.html" style="display: inline-block; margin-bottom: 20px; text-decoration: none; font-weight: bold; color: #2c3e50; font-family: sans-serif;">← Back to Settings</a>
-    
+    <a href="settings.html"
+        style="display: inline-block; margin-bottom: 20px; text-decoration: none; font-weight: bold; color: #2c3e50; font-family: sans-serif;">←
+        Back to Settings</a>
+
     <div class="card">
         <h2>Add New Employee</h2>
         <form id="createEmployeeForm">
@@ -45,22 +98,8 @@
                 <input type="text" id="emp-name" placeholder="Enter Full Name" required>
             </div>
             <div class="form-group">
-                <label>Designation</label>
+                <label>Role</label>
                 <input type="text" id="emp-designation" placeholder="e.g. Loan Officer">
-            </div>
-            <div class="form-group">
-                <label>Department</label>
-                <select id="emp-department">
-                    <option value="Sales">Sales</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="HR">HR</option>
-                    <option value="IT">IT</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Date of Joining</label>
-                <input type="date" id="emp-doj">
             </div>
             <div class="form-group">
                 <label>Contact Number</label>
@@ -79,4 +118,5 @@
     </div>
     <script src="settings.js"></script>
 </body>
+
 </html>

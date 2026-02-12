@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,19 +11,24 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
- <script>
-        // --- ACCESS CONTROL ---
-        // This script acts as a gatekeeper. If the user is not logged in,
-        // it immediately redirects them to the login page before any content loads.
-        if (localStorage.getItem('isLoggedIn') !== 'true') {
-            window.location.href = 'login.html';
-        }
-    </script>
+<script>
+    // --- ACCESS CONTROL ---
+    // This script acts as a gatekeeper. If the user is not logged in,
+    // it immediately redirects them to the login page before any content loads.
+    if (localStorage.getItem('isLoggedIn') !== 'true') {
+        window.location.href = 'login.html';
+    }
+    // Restrict Expenses to Admins only
+    if (localStorage.getItem('userRole') !== 'Administrator') {
+        window.location.href = 'Employee-dashboard.html';
+    }
+</script>
+
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
         <aside class="sidebar collapsed">
-              
+
         </aside>
 
         <!-- Main Content -->
@@ -41,7 +47,8 @@
                     </div>
                     <div class="header-right">
                         <div class="search-wrapper">
-                            <label for="global-search" style="position: absolute; left: -9999px;">Search borrowers</label>
+                            <label for="global-search" style="position: absolute; left: -9999px;">Search
+                                borrowers</label>
                             <input type="text" id="global-search" autocomplete="off" placeholder="Search borrowers...">
                             <div id="search-results" class="search-dropdown"></div>
                         </div>
@@ -69,10 +76,13 @@
                         </div>
                         <div style="text-align: right;">
                             <div style="font-size: 0.9rem; color: #7f8c8d;">Total Expenses</div>
-                            <div id="total-expenses" style="font-size: 2rem; font-weight: bold; color: #e74c3c;">₹0.00</div>
+                            <div id="total-expenses" style="font-size: 2rem; font-weight: bold; color: #e74c3c;">₹0.00
+                            </div>
                         </div>
                     </div>
-                    <button id="add-expense-btn" style="margin-top: 20px; padding: 10px 20px; background-color: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">+ Add Expense</button>
+                    <button id="add-expense-btn"
+                        style="margin-top: 20px; padding: 10px 20px; background-color: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">+
+                        Add Expense</button>
                 </section>
 
                 <section class="card">
@@ -81,11 +91,14 @@
                         <thead>
                             <tr>
                                 <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Date</th>
-                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Description</th>
-                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Category</th>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Description
+                                </th>
+                                <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Category
+                                </th>
                                 <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee;">Status</th>
                                 <th style="text-align: right; padding: 10px; border-bottom: 1px solid #eee;">Amount</th>
-                                <th style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">Action</th>
+                                <th style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">Action
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="expense-table-body"></tbody>
@@ -106,12 +119,16 @@
                     <input type="date" id="exp-date" name="exp-date" autocomplete="off" required style="width: 100%;">
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="exp-desc" style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
-                    <input type="text" id="exp-desc" name="exp-desc" autocomplete="off" placeholder="e.g. Office Rent" required style="width: 100%;">
+                    <label for="exp-desc"
+                        style="display:block; margin-bottom:5px; font-weight:bold;">Description</label>
+                    <input type="text" id="exp-desc" name="exp-desc" autocomplete="off" placeholder="e.g. Office Rent"
+                        required style="width: 100%;">
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="exp-category" style="display:block; margin-bottom:5px; font-weight:bold;">Category</label>
-                    <select id="exp-category" name="exp-category" autocomplete="off" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <label for="exp-category"
+                        style="display:block; margin-bottom:5px; font-weight:bold;">Category</label>
+                    <select id="exp-category" name="exp-category" autocomplete="off"
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                         <option value="Office">Office</option>
                         <option value="Salary">Salary</option>
                         <option value="Utilities">Utilities</option>
@@ -121,13 +138,16 @@
                 </div>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label for="exp-amount" style="display:block; margin-bottom:5px; font-weight:bold;">Amount</label>
-                    <input type="number" id="exp-amount" name="exp-amount" autocomplete="off" required step="0.01" style="width: 100%;">
+                    <input type="number" id="exp-amount" name="exp-amount" autocomplete="off" required step="0.01"
+                        style="width: 100%;">
                 </div>
-                <button type="submit" style="width: 100%; margin-top: 10px; background-color: #e74c3c;">Save Expense</button>
+                <button type="submit" style="width: 100%; margin-top: 10px; background-color: #e74c3c;">Save
+                    Expense</button>
             </form>
         </div>
     </div>
     <script src="app.js" defer></script>
     <script src="expenses.js" defer></script>
 </body>
+
 </html>

@@ -49,8 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loginForm.addEventListener('submit', async function (e) {
             e.preventDefault();
 
-            if (!auth) {
-                alert("System Error: Firebase is not initialized. Please check the console (F12) for details.");
+            if (!auth || !db) {
+                alert("System Error: Firebase is not fully initialized. Please check the console (F12) for details.");
                 return;
             }
 
@@ -334,6 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("Employee Firebase auth successful");
                         const email = userCredential.user.email;
                         try {
+                            if (!db) throw new Error("Firestore is not initialized");
+
                             // Try to get details from Firestore to get name/designation
                             const q = query(collection(db, "employees"), where("email", "==", email));
                             const querySnapshot = await getDocs(q);
@@ -358,7 +360,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         } catch (e) {
                             console.error("Error fetching employee details:", e);
-                            handleLoginError("System error verifying employee status.");
+                            if (e.code === 'permission-denied') {
+                                console.error("Permission denied for email:", email);
+                                handleLoginError("Access Denied: Your account is not authorized to access employee records. Please contact the Administrator.");
+                            } else {
+                                handleLoginError("System error verifying employee status: " + e.message);
+                            }
                         }
                     })
                     .catch((error) => {

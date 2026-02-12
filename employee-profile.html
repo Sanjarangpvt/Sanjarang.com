@@ -9,14 +9,15 @@
     <link rel="stylesheet" href="sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </head>
- <script>
-        // --- ACCESS CONTROL ---
-        // This script acts as a gatekeeper. If the user is not logged in,
-        // it immediately redirects them to the login page before any content loads.
-        if (localStorage.getItem('isLoggedIn') !== 'true') {
-            window.location.href = 'login.html';
-        }
-    </script>
+<script>
+    // --- ACCESS CONTROL ---
+    // This script acts as a gatekeeper. If the user is not logged in,
+    // it immediately redirects them to the login page before any content loads.
+    if (localStorage.getItem('isLoggedIn') !== 'true') {
+        window.location.href = 'login.html';
+    }
+</script>
+
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
@@ -64,18 +65,8 @@
                                 style="background-color: hsl(312, 71%, 93%); margin-inline-start : 50px;">
                         </div>
                         <div class="form-group" style="margin-bottom:15px">
-                            <label style="font-weight: bold; width: 150px; color: #555;">Designation</label>
+                            <label style="font-weight: bold; width: 150px; color: #555;">Roll</label>
                             <input type="text" id="ep-designation" readonly
-                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:15px">
-                            <label style="font-weight: bold; width: 150px; color: #555;">Department</label>
-                            <input type="text" id="ep-department" readonly
-                                style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:15px">
-                            <label style="font-weight: bold; width: 150px; color: #555;">Date of Joining</label>
-                            <input type="text" id="ep-doj" readonly
                                 style="background-color: hsl(312, 71%, 93%); margin-left: 50px;">
                         </div>
                         <div class="form-group" style="margin-bottom:15px">

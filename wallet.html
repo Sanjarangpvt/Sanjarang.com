@@ -13,6 +13,10 @@
         if (localStorage.getItem('isLoggedIn') !== 'true') {
             window.location.href = 'login.html';
         }
+        // Restrict Wallet to Admins only
+        if (localStorage.getItem('userRole') !== 'Administrator') {
+            window.location.href = 'Employee-dashboard.html';
+        }
     </script>
     <link rel="stylesheet" href="sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

@@ -19,6 +19,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SETTINGS PAGE LOGIC (settings.html) ---
 
+    // --- LOADING SPINNER ---
+    const showSpinner = () => {
+        if (document.getElementById('settings-sync-spinner')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'settings-sync-spinner';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:9999;display:flex;justify-content:center;align-items:center;flex-direction:column;backdrop-filter:blur(2px);';
+        overlay.innerHTML = '<div class="spinner" style="width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #3498db;border-radius:50%;animation:spin 1s linear infinite;"></div><div style="margin-top:15px;font-weight:600;color:#2c3e50;">Syncing Data...</div><style>@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>';
+        document.body.appendChild(overlay);
+    };
+    const hideSpinner = () => {
+        const overlay = document.getElementById('settings-sync-spinner');
+        if (overlay) overlay.remove();
+    };
+
     // --- FIRESTORE SETUP ---
     let db;
     let firestoreOps = {};
@@ -27,29 +41,38 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { app } = await import('./firebase-config.js');
             const { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, writeBatch, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const { getAuth, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
+
             db = getFirestore(app);
+            const auth = getAuth(app);
             firestoreOps = { collection, doc, setDoc, addDoc, deleteDoc, writeBatch, updateDoc };
 
-            // Sync Employees
-            onSnapshot(collection(db, "employees"), (snapshot) => {
-                const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })); // Firestore ID is used as 'id' if manual ID not present, but we use manual IDs for employees usually.
-                // Actually, we store manual ID in 'id' field. Firestore doc ID can be same.
-                localStorage.setItem('employees', JSON.stringify(employees));
-                renderEmployees();
-            });
+            // Wait for Auth to initialize before querying
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    showSpinner();
+                    // Sync Employees
+                    onSnapshot(collection(db, "employees"), (snapshot) => {
+                        const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        localStorage.setItem('employees', JSON.stringify(employees));
+                        if (typeof renderEmployees === 'function') renderEmployees();
+                        hideSpinner();
+                    }, (error) => { console.error("Employees sync error:", error); hideSpinner(); });
 
-            // Sync Admins
-            onSnapshot(collection(db, "admin_users"), (snapshot) => {
-                const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
-                localStorage.setItem('adminUsers', JSON.stringify(admins));
-                if (typeof renderAdmins === 'function') renderAdmins();
-            });
+                    // Sync Admins
+                    onSnapshot(collection(db, "admin_users"), (snapshot) => {
+                        const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+                        localStorage.setItem('adminUsers', JSON.stringify(admins));
+                        if (typeof renderAdmins === 'function') renderAdmins();
+                    }, (error) => console.error("Admins sync error:", error));
 
-            // Sync Dashboard Message
-            onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
-                const messageInput = document.getElementById('dashboard-message');
-                if (docSnap.exists() && messageInput) {
-                    messageInput.value = docSnap.data().text || '';
+                    // Sync Dashboard Message
+                    onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
+                        const messageInput = document.getElementById('dashboard-message');
+                        if (docSnap.exists() && messageInput) {
+                            messageInput.value = docSnap.data().text || '';
+                        }
+                    }, (error) => console.error("Message sync error:", error));
                 }
             });
 
@@ -84,9 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const { app } = await import('./firebase-config.js');
                 const { getFirestore, doc, writeBatch } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-                
+
                 const db = getFirestore(app);
-                
+
                 // Read Data
                 const loans = JSON.parse(localStorage.getItem('loans')) || [];
                 const employees = JSON.parse(localStorage.getItem('employees')) || [];
@@ -96,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
 
                 // Prepare Batches
-                const batchSize = 450; 
+                const batchSize = 450;
                 let batches = [];
                 let currentBatch = writeBatch(db);
                 let operationCount = 0;
@@ -117,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Queue Operations
                 loans.forEach((loan, index) => {
                     const loanId = loan.id || `loan_${Date.now()}_${index}`;
-                    const loanRef = doc(db, "loans", loanId); 
+                    const loanRef = doc(db, "loans", loanId);
                     addToBatch(loanRef, sanitize(loan));
                 });
 
@@ -161,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Commit
                 if (status) status.textContent = `Uploading ${batches.length} batches...`;
-                
+
                 for (let i = 0; i < batches.length; i++) {
                     await batches[i].commit();
                     if (status) status.textContent = `Uploaded batch ${i + 1} of ${batches.length}...`;
@@ -212,9 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Fallback: implement sync here
                     const { app } = await import('./firebase-config.js');
                     const { getFirestore, doc, writeBatch } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-                    
+
                     const db = getFirestore(app);
-                    
+
                     // Read Data
                     const loans = JSON.parse(localStorage.getItem('loans')) || [];
                     const employees = JSON.parse(localStorage.getItem('employees')) || [];
@@ -232,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Prepare Batches
-                    const batchSize = 450; 
+                    const batchSize = 450;
                     let batches = [];
                     let currentBatch = writeBatch(db);
                     let operationCount = 0;
@@ -253,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Queue Operations
                     loans.forEach((loan, index) => {
                         const loanId = loan.id || `loan_${Date.now()}_${index}`;
-                        const loanRef = doc(db, "loans", loanId); 
+                        const loanRef = doc(db, "loans", loanId);
                         addToBatch(loanRef, sanitize(loan));
                     });
 
@@ -297,9 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Commit with timeout
                     if (status) status.textContent = `Syncing ${batches.length} batches...`;
-                    
+
                     const commitPromises = batches.map(batch => batch.commit());
-                    const timeoutPromise = new Promise((_, reject) => 
+                    const timeoutPromise = new Promise((_, reject) =>
                         setTimeout(() => reject(new Error("Sync timeout")), 30000)
                     );
 
@@ -326,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
+
     // --- BACKUP DATA LOGIC ---
     const backupBtn = document.getElementById('backupDataBtn');
     if (backupBtn) {
@@ -365,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderEmployees = () => {
         const tbody = document.querySelector('#employee-table tbody');
         if (!tbody) return;
-        
+
         const employees = JSON.parse(localStorage.getItem('employees')) || [];
         tbody.innerHTML = '';
 
@@ -383,6 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${emp.department}</td>
                 <td>${emp.mobile}</td>
                 <td>
+                    <button class="view-emp-btn" data-index="${index}" style="background-color: #2c3e50; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;" title="View Profile"><i class="bi bi-eye"></i></button>
                     <button class="edit-emp-btn" data-index="${index}" style="background-color: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Edit</button>
                     <button class="generate-id-btn" data-index="${index}" style="background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">ID Card</button>
                     <button class="delete-emp-btn" data-index="${index}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
@@ -391,19 +415,74 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.appendChild(row);
         });
 
+        // Add view listeners
+        document.querySelectorAll('.view-emp-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target.closest('.view-emp-btn');
+                const index = target.getAttribute('data-index');
+                const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                const emp = employees[index];
+
+                if (emp) {
+                    const detailsHtml = `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Employee ID</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.id}</span>
+                            </div>
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Full Name</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.name}</span>
+                            </div>
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Role</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.designation || '-'}</span>
+                            </div>
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Department</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.department || '-'}</span>
+                            </div>
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Mobile</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.mobile || '-'}</span>
+                            </div>
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Email</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.email || '-'}</span>
+                            </div>
+                            <div style="border-bottom: 1px solid #eee; padding-bottom: 5px; grid-column: 1 / -1;">
+                                <span style="color: #7f8c8d; font-size: 12px; display: block;">Address</span>
+                                <span style="font-weight: 600; color: #2c3e50;">${emp.address || '-'}</span>
+                            </div>
+                        </div>
+                    `;
+                    const detailsContainer = document.getElementById('view-emp-details');
+                    if (detailsContainer) detailsContainer.innerHTML = detailsHtml;
+                    const modal = document.getElementById('view-employee-modal');
+                    if (modal) modal.style.display = 'block';
+                }
+            });
+        });
+
         // Add edit listeners
         document.querySelectorAll('.edit-emp-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const idx = e.target.getAttribute('data-index');
                 const employees = JSON.parse(localStorage.getItem('employees')) || [];
                 const emp = employees[idx];
-                
+
                 document.getElementById('emp-id').value = emp.id;
-                document.getElementById('emp-password').value = emp.password || '';
+                const passwordInput = document.getElementById('emp-password');
+                passwordInput.value = ''; // Clear password field for editing
+                passwordInput.placeholder = 'Leave blank to keep unchanged';
+                passwordInput.required = false;
                 document.getElementById('emp-name').value = emp.name;
-                document.getElementById('emp-designation').value = emp.designation;
-                document.getElementById('emp-department').value = emp.department;
-                document.getElementById('emp-doj').value = emp.doj;
+                const designationEl = document.getElementById('emp-designation');
+                if (designationEl) designationEl.value = emp.designation;
+                const departmentEl = document.getElementById('emp-department');
+                if (departmentEl) departmentEl.value = emp.department;
+                const dojEl = document.getElementById('emp-doj');
+                if (dojEl) dojEl.value = emp.doj;
                 document.getElementById('emp-mobile').value = emp.mobile;
                 document.getElementById('emp-email').value = emp.email;
                 document.getElementById('emp-address').value = emp.address;
@@ -440,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 const idx = e.target.getAttribute('data-index');
                 const emp = JSON.parse(localStorage.getItem('employees'))[idx];
-                
+
                 // Populate Template
                 document.getElementById('card-name').textContent = emp.name;
                 document.getElementById('card-designation').textContent = emp.designation;
@@ -481,6 +560,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.reset();
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = 'Create Employee ID';
+                // Set password as required for new employees
+                const passwordInput = document.getElementById('emp-password');
+                passwordInput.placeholder = 'Create Password';
+                passwordInput.required = true;
             }
             editingIndex = -1;
             empModal.style.display = 'block';
@@ -495,19 +578,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target == empModal) empModal.style.display = 'none';
     });
 
+    // --- VIEW MODAL LOGIC ---
+    const viewModal = document.getElementById('view-employee-modal');
+    const closeViewModal = document.getElementById('close-view-emp-modal');
+    if (closeViewModal && viewModal) {
+        closeViewModal.addEventListener('click', () => {
+            viewModal.style.display = 'none';
+        });
+        window.addEventListener('click', (e) => {
+            if (e.target == viewModal) viewModal.style.display = 'none';
+        });
+    }
+
     // 3. Employee Management - Form (Runs on add-employee.html)
     const createEmployeeForm = document.getElementById('createEmployeeForm');
     if (createEmployeeForm) {
         createEmployeeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const newEmployee = {
                 id: document.getElementById('emp-id').value,
                 password: document.getElementById('emp-password').value,
                 name: document.getElementById('emp-name').value,
-                designation: document.getElementById('emp-designation').value,
-                department: document.getElementById('emp-department').value,
-                doj: document.getElementById('emp-doj').value,
+                designation: document.getElementById('emp-designation')?.value || '',
+                department: document.getElementById('emp-department')?.value || '',
+                doj: document.getElementById('emp-doj')?.value || '',
                 mobile: document.getElementById('emp-mobile').value,
                 email: document.getElementById('emp-email').value,
                 address: document.getElementById('emp-address').value,
@@ -516,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             let employees = JSON.parse(localStorage.getItem('employees')) || [];
-            
+
             if (editingIndex >= 0) {
                 // Update Existing (Local Check)
                 if (employees.some((emp, i) => emp.id === newEmployee.id && i != editingIndex)) {
@@ -524,7 +619,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 newEmployee.createdAt = employees[editingIndex].createdAt; // Preserve creation date
-                
+
+                // If password field is empty during update, keep the old one
+                if (!newEmployee.password) {
+                    newEmployee.password = employees[editingIndex].password;
+                }
+
                 if (db && firestoreOps.setDoc) {
                     await firestoreOps.setDoc(firestoreOps.doc(db, "employees", newEmployee.id), newEmployee);
                     alert('Employee Updated Successfully!');
@@ -534,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderEmployees();
                     alert('Employee Updated Locally!');
                 }
-                
+
                 editingIndex = -1;
                 const submitBtn = createEmployeeForm.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = 'Create Employee ID';
@@ -544,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('Error: Employee ID already exists!');
                     return;
                 }
-                
+
                 if (db && firestoreOps.setDoc) {
                     await firestoreOps.setDoc(firestoreOps.doc(db, "employees", newEmployee.id), newEmployee);
                     alert('Employee ID Created Successfully!');
@@ -557,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Local storage update handled by onSnapshot
-            
+
             createEmployeeForm.reset();
             if (empModal) empModal.style.display = 'none'; // Close modal if exists
         });
@@ -583,10 +683,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentUserEmail = localStorage.getItem('currentUserEmail') || '';
         const currentUsername = localStorage.getItem('currentUser') || 'admin';
         const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
-        
+
         // Find current user data
         let userObj = admins.find(a => a.email && a.email.toLowerCase() === currentUserEmail.toLowerCase());
-        
+
         // Pre-fill form
         document.getElementById('profile-username').value = currentUsername;
         if (userObj) {
@@ -604,15 +704,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!newUsername || !newEmail) { alert('Username and Email are required'); return; }
 
             let currentAdmins = JSON.parse(localStorage.getItem('adminUsers')) || [];
-            
+
             // Check if new email is taken by SOMEONE ELSE
             const isEmailTaken = currentAdmins.some(a => a.email && a.email.toLowerCase() === newEmail.toLowerCase() && a.email.toLowerCase() !== currentUserEmail.toLowerCase());
             if (isEmailTaken) { alert('This email is already in use by another admin.'); return; }
-            
+
             // Find index of current user in storage
             let targetIndex = currentAdmins.findIndex(a => a.email && a.email.toLowerCase() === currentUserEmail.toLowerCase());
             let adminData = targetIndex !== -1 ? currentAdmins[targetIndex] : {};
-            
+
             adminData.username = newUsername;
             adminData.email = newEmail;
             adminData.role = newRole;
@@ -623,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // If the email (which is the document ID) has changed, we must delete the old document
                 // and create a new one.
                 if (currentUserEmail && currentUserEmail.toLowerCase() !== newEmail.toLowerCase() && firestoreOps.deleteDoc) {
-                     await firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", currentUserEmail));
+                    await firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", currentUserEmail));
                 }
                 // Save the document with the new email as the ID
                 await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", newEmail), adminData);
@@ -635,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             localStorage.setItem('currentUser', newUsername);
             localStorage.setItem('currentUserEmail', newEmail);
-            
+
             alert('Profile updated successfully.');
             window.location.reload();
         });
@@ -664,9 +764,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!adminTableBody) return;
         const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
         adminTableBody.innerHTML = '';
-        
+
         if (admins.length === 0) {
-             adminTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #777;">No custom admins. Default "admin" is active.</td></tr>';
+            adminTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #777;">No custom admins. Default "admin" is active.</td></tr>';
         } else {
             admins.forEach((admin, index) => {
                 const row = document.createElement('tr');
@@ -680,10 +780,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 adminTableBody.appendChild(row);
             });
         }
-        
+
         document.querySelectorAll('.delete-admin-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                if(confirm('Delete this admin user?')) {
+                if (confirm('Delete this admin user?')) {
                     const idx = e.target.getAttribute('data-index');
                     const admin = admins[idx];
                     if (db && firestoreOps.deleteDoc) {
@@ -706,14 +806,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = document.getElementById('admin-username').value.trim(); // This input should be for the admin's email
             const p = document.getElementById('admin-password').value;
             const r = document.getElementById('admin-role').value;
-            
-            if(email && p) {
+
+            if (email && p) {
                 const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
                 if (admins.some(a => a.email && a.email.toLowerCase() === email.toLowerCase())) {
                     alert('An admin with this email already exists!');
                     return;
                 }
-                
+
                 if (db && firestoreOps.setDoc) {
                     // Use the email as the document ID and also save it in the document
                     await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", email), { username: email, email: email, password: p, role: r });
@@ -722,7 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('adminUsers', JSON.stringify(admins));
                     renderAdmins();
                 }
-                
+
                 createAdminForm.reset();
                 alert('Admin created successfully.');
             }
@@ -762,10 +862,10 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             const theme = btn.getAttribute('data-theme');
             localStorage.setItem('appTheme', theme);
-            
+
             // Apply immediately
             document.body.classList.remove('dark-mode', 'blue-theme', 'green-theme', 'glass-theme');
-            
+
             if (theme === 'dark') document.body.classList.add('dark-mode');
             else if (theme === 'blue') document.body.classList.add('blue-theme');
             else if (theme === 'green') document.body.classList.add('green-theme');
@@ -783,7 +883,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = e.target.value;
             localStorage.setItem('appBgOpacity', val);
             if (opacityValDisplay) opacityValDisplay.textContent = Math.round(val * 100) + '%';
-            
+
             const overlay = document.getElementById('bg-overlay');
             if (overlay) overlay.style.opacity = val;
         });
@@ -799,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = e.target.value;
             localStorage.setItem('appBgBlur', val);
             if (blurValDisplay) blurValDisplay.textContent = val + 'px';
-            
+
             const overlay = document.getElementById('bg-overlay');
             if (overlay) overlay.style.filter = `blur(${val}px)`;
         });
@@ -833,7 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.onload = (event) => {
                     try {
                         localStorage.setItem('appCustomBg', event.target.result);
-                        
+
                         // Update Overlay
                         let overlay = document.getElementById('bg-overlay');
                         if (!overlay) {
@@ -861,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     overlay.style.backgroundImage = `url('${event.target.result}')`;
                     overlay.style.opacity = bgOpacityInput ? bgOpacityInput.value : '1';
                     overlay.style.filter = `blur(${bgBlurInput ? bgBlurInput.value : '0'}px)`;
-                    
+
                     const mainContent = document.querySelector('.main-content');
                     const appLayout = document.querySelector('.app-layout');
                     if (mainContent) mainContent.style.backgroundColor = 'transparent';
@@ -883,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.remove('custom-bg-active');
             const overlay = document.getElementById('bg-overlay');
             if (overlay) overlay.style.backgroundImage = '';
-            
+
             const mainContent = document.querySelector('.main-content');
             const appLayout = document.querySelector('.app-layout');
             if (mainContent) mainContent.style.backgroundColor = '';
@@ -915,14 +1015,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Apply Default Styles
                 document.body.classList.remove('dark-mode', 'blue-theme', 'green-theme', 'glass-theme', 'custom-bg-active');
                 document.documentElement.style.setProperty('--glass-opacity', '0.65');
-                
+
                 const overlay = document.getElementById('bg-overlay');
                 if (overlay) {
                     overlay.style.backgroundImage = '';
                     overlay.style.opacity = '1';
                     overlay.style.filter = 'blur(0px)';
                 }
-                
+
                 const mainContent = document.querySelector('.main-content');
                 const appLayout = document.querySelector('.app-layout');
                 if (mainContent) mainContent.style.backgroundColor = '';
@@ -950,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messageForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const message = messageInput.value.trim();
-            
+
             if (db && firestoreOps.setDoc && firestoreOps.doc) {
                 try {
                     await firestoreOps.setDoc(firestoreOps.doc(db, "settings", "dashboardMessage"), { text: message, updatedAt: new Date().toISOString() });

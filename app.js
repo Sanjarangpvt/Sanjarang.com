@@ -38,6 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (userRole !== 'Administrator') {
                     const dashboardLink = sidebar.querySelector('a[href="dashboard.html"]');
                     if (dashboardLink) dashboardLink.setAttribute('href', 'Employee-dashboard.html');
+
+                    // Hide Wallet Link for Employees
+                    const walletLink = sidebar.querySelector('a[href="wallet.html"]');
+                    if (walletLink) walletLink.style.display = 'none';
+
+                    // Hide Expenses Link for Employees
+                    const expensesLink = sidebar.querySelector('a[href="expenses.html"]');
+                    if (expensesLink) expensesLink.style.display = 'none';
                 }
 
                 // Update Profile Info
@@ -3154,9 +3162,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- AUTO LOGOUT LOGIC (30 MIN INACTIVITY) ---
+    // --- AUTO LOGOUT LOGIC (20 MIN INACTIVITY) ---
     if (localStorage.getItem('isLoggedIn') === 'true') {
-        const inactivityLimit = 30 * 60 * 1000; // 30 Minutes
+        const inactivityLimit = 20 * 60 * 1000; // 20 Minutes
         let inactivityTimer;
 
         const performAutoLogout = () => {
