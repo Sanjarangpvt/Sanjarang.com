@@ -256,81 +256,107 @@ document.addEventListener('DOMContentLoaded', () => {
     const initFirestore = async () => {
         try {
             const { app } = await import('./firebase-config.js');
-            const { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const { getFirestore, collection, onSnapshot, doc, setDoc, addDoc, deleteDoc, query, where } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+            const { getAuth, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
+
             db = getFirestore(app);
             firestoreOps = { doc, setDoc, addDoc, deleteDoc, collection };
+            const auth = getAuth(app);
 
-            // Listener 1: Active/Closed Loans
-            onSnapshot(collection(db, "loans"), (snapshot) => {
-                fetchedLoans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, firestoreCollection: 'loans' }));
-                updateAllLoans();
-            }, (err) => console.error("Loans listener error:", err));
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    const userRole = localStorage.getItem('userRole');
+                    const isEmployee = userRole !== 'Administrator';
 
-            // Listener 2: Loan Applications (Pending)
-            onSnapshot(collection(db, "loan_applications"), (snapshot) => {
-                fetchedApps = snapshot.docs.map(doc => {
-                    const data = doc.data();
-                    return { ...data, id: doc.id, status: data.status || 'Pending', firestoreCollection: 'loan_applications' };
-                });
-                updateAllLoans();
-            }, (err) => console.error("Loan Applications listener error:", err));
-
-            // Listener 3: EMI Schedules
-            onSnapshot(collection(db, "emi_schedule"), (snapshot) => {
-                fetchedSchedules = {};
-                snapshot.docs.forEach(doc => {
-                    fetchedSchedules[doc.id] = doc.data();
-                });
-                updateAllLoans();
-            }, (err) => console.error("EMI Schedule listener error:", err));
-
-            // Listener 4: Expenses
-            onSnapshot(collection(db, "expenses"), (snapshot) => {
-                const expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                localStorage.setItem('expenses', JSON.stringify(expenses));
-                document.dispatchEvent(new CustomEvent('expenses-updated'));
-            }, (err) => console.error("Expenses sync error:", err));
-
-            // Listener 5: Wallet Transactions
-            onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
-                const transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                localStorage.setItem('walletTransactions', JSON.stringify(transactions));
-                document.dispatchEvent(new CustomEvent('wallet-updated'));
-            }, (err) => console.error("Wallet sync error:", err));
-
-            // Sync Company Profile
-            onSnapshot(doc(db, "settings", "companyProfile"), (docSnap) => {
-                if (docSnap.exists()) {
-                    localStorage.setItem('companyProfile', JSON.stringify(docSnap.data()));
-                    updateSidebarProfile();
-                }
-            }, (err) => console.error("Company Profile sync error:", err));
-
-            // Sync Admin Users
-            onSnapshot(collection(db, "admin_users"), (snapshot) => {
-                const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
-                localStorage.setItem('adminUsers', JSON.stringify(admins));
-            }, (err) => console.error("Admin Users sync error:", err));
-
-            // Listener for Employees
-            onSnapshot(collection(db, "employees"), (snapshot) => {
-                const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                localStorage.setItem('employees', JSON.stringify(employees));
-                document.dispatchEvent(new CustomEvent('loans-updated'));
-            }, (err) => console.error("Employees sync error:", err));
-
-            // Listener for Dashboard Message
-            onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
-                const messageBar = document.querySelector('.message-bar');
-                const messageText = document.getElementById('dashboard-message-text');
-
-                if (messageBar && messageText) {
-                    if (docSnap.exists() && docSnap.data().text && docSnap.data().text.trim() !== '') {
-                        messageText.textContent = docSnap.data().text;
-                        messageBar.style.display = 'block';
-                    } else {
-                        messageBar.style.display = 'none';
+                    // Listener 1: Active/Closed Loans
+                    let loansQuery = collection(db, "loans");
+                    if (isEmployee) {
+                        loansQuery = query(collection(db, "loans"), where("employeeEmail", "==", user.email));
                     }
+
+                    onSnapshot(loansQuery, (snapshot) => {
+                        fetchedLoans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, firestoreCollection: 'loans' }));
+                        updateAllLoans();
+                    }, (err) => console.error("Loans listener error:", err));
+
+                    // Listener 2: Loan Applications (Pending)
+                    let appsQuery = collection(db, "loan_applications");
+                    if (isEmployee) {
+                        appsQuery = query(collection(db, "loan_applications"), where("employeeEmail", "==", user.email));
+                    }
+
+                    onSnapshot(appsQuery, (snapshot) => {
+                        fetchedApps = snapshot.docs.map(doc => {
+                            const data = doc.data();
+                            return { ...data, id: doc.id, status: data.status || 'Pending', firestoreCollection: 'loan_applications' };
+                        });
+                        updateAllLoans();
+                    }, (err) => console.error("Loan Applications listener error:", err));
+
+                    // Listener 3: EMI Schedules
+                    if (!isEmployee) {
+                        onSnapshot(collection(db, "emi_schedule"), (snapshot) => {
+                            fetchedSchedules = {};
+                            snapshot.docs.forEach(doc => {
+                                fetchedSchedules[doc.id] = doc.data();
+                            });
+                            updateAllLoans();
+                        }, (err) => console.error("EMI Schedule listener error:", err));
+                    }
+
+                    // Listener 4: Expenses
+                    onSnapshot(collection(db, "expenses"), (snapshot) => {
+                        const expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        localStorage.setItem('expenses', JSON.stringify(expenses));
+                        document.dispatchEvent(new CustomEvent('expenses-updated'));
+                    }, (err) => console.error("Expenses sync error:", err));
+
+                    // Listener 5: Wallet Transactions
+                    onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
+                        const transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        localStorage.setItem('walletTransactions', JSON.stringify(transactions));
+                        document.dispatchEvent(new CustomEvent('wallet-updated'));
+                    }, (err) => console.error("Wallet sync error:", err));
+
+                    // Sync Company Profile
+                    onSnapshot(doc(db, "settings", "companyProfile"), (docSnap) => {
+                        if (docSnap.exists()) {
+                            localStorage.setItem('companyProfile', JSON.stringify(docSnap.data()));
+                            updateSidebarProfile();
+                        }
+                    }, (err) => console.error("Company Profile sync error:", err));
+
+                    // Sync Admin Users
+                    if (!isEmployee) {
+                        onSnapshot(collection(db, "admin_users"), (snapshot) => {
+                            const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+                            localStorage.setItem('adminUsers', JSON.stringify(admins));
+                        }, (err) => console.error("Admin Users sync error:", err));
+                    }
+
+                    // Listener for Employees
+                    onSnapshot(collection(db, "employees"), (snapshot) => {
+                        const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        localStorage.setItem('employees', JSON.stringify(employees));
+                        document.dispatchEvent(new CustomEvent('loans-updated'));
+                    }, (err) => console.error("Employees sync error:", err));
+
+                    // Listener for Dashboard Message
+                    onSnapshot(doc(db, "settings", "dashboardMessage"), (docSnap) => {
+                        const messageBar = document.querySelector('.message-bar');
+                        const messageText = document.getElementById('dashboard-message-text');
+
+                        if (messageBar && messageText) {
+                            if (docSnap.exists() && docSnap.data().text && docSnap.data().text.trim() !== '') {
+                                messageText.textContent = docSnap.data().text;
+                                messageBar.style.display = 'block';
+                            } else {
+                                messageBar.style.display = 'none';
+                            }
+                        }
+                    });
+                } else {
+                    console.log("User not authenticated. Firestore listeners paused.");
                 }
             });
         } catch (e) {
