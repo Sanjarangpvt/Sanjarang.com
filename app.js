@@ -2,8 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DYNAMIC SIDEBAR LOADER ---
     // --- HELPER: UPDATE SIDEBAR PROFILE ---
     // Defined here so it is available for loadSidebar and Firestore listeners
-    const updateSidebarProfile = () => {
-        const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+    const updateSidebarProfile = (profile) => {
+        const savedProfile = profile || window.companyProfile || {};
         const sidebarLogo = document.getElementById('sidebar-logo');
         const sidebarCompanyName = document.getElementById('sidebar-company-name');
 
@@ -227,38 +227,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${day}/${month}/${year}`;
     };
 
-    // Load JSON safely from localStorage
-    const getLocalJSON = (key) => {
-        try {
-            const data = localStorage.getItem(key);
-            return data ? JSON.parse(data) : [];
-        } catch (e) {
-            console.error(`Error parsing localStorage key "${key}":`, e);
-            return [];
-        }
-    };
-
     // 1. Load data from LocalStorage (Shared between pages)
-    let loans = getLocalJSON('loans');
+    // GLOBAL DATA STATE (In-Memory)
+    window.loans = [];
+    window.employees = [];
+    window.companyProfile = {};
+    
     // Split local data to prevent flickering before Firestore loads
-    let fetchedLoans = loans.filter(l => l.firestoreCollection !== 'loan_applications');
-    let fetchedApps = loans.filter(l => l.firestoreCollection === 'loan_applications');
+    let fetchedLoans = [];
+    let fetchedApps = [];
     let fetchedSchedules = {}; // Map: loanId -> schedule object
 
     let db;
     let firestoreOps = {};
-
-    // Helper to combine data from both collections
-    const updateAllLoans = () => {
-        loans = [...fetchedLoans, ...fetchedApps].map(loan => {
-            if (fetchedSchedules[loan.id]) {
-                return { ...loan, emi_schedule: fetchedSchedules[loan.id] };
-            }
-            return loan;
-        });
-        localStorage.setItem('loans', JSON.stringify(loans));
-        document.dispatchEvent(new CustomEvent('loans-updated'));
-    };
 
     // --- FIRESTORE REAL-TIME LISTENER ---
     const initFirestore = async () => {
@@ -284,7 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     onSnapshot(loansQuery, (snapshot) => {
                         fetchedLoans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, firestoreCollection: 'loans' }));
-                        updateAllLoans();
+                        window.loans = [...fetchedLoans, ...fetchedApps];
+                        document.dispatchEvent(new CustomEvent('loans-updated'));
                     }, (err) => console.error("Loans listener error:", err));
 
                     // Listener 2: Loan Applications (Pending)
@@ -298,7 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             const data = doc.data();
                             return { ...data, id: doc.id, status: data.status || 'Pending', firestoreCollection: 'loan_applications' };
                         });
-                        updateAllLoans();
+                        window.loans = [...fetchedLoans, ...fetchedApps];
+                        document.dispatchEvent(new CustomEvent('loans-updated'));
                     }, (err) => console.error("Loan Applications listener error:", err));
 
                     // Listener 3: EMI Schedules
@@ -308,29 +291,33 @@ document.addEventListener('DOMContentLoaded', () => {
                             snapshot.docs.forEach(doc => {
                                 fetchedSchedules[doc.id] = doc.data();
                             });
-                            updateAllLoans();
+                            window.loans = [...fetchedLoans, ...fetchedApps].map(loan => {
+                                if (fetchedSchedules[loan.id]) {
+                                    return { ...loan, emi_schedule: fetchedSchedules[loan.id] };
+                                }
+                                return loan;
+                            });
+                            document.dispatchEvent(new CustomEvent('loans-updated'));
                         }, (err) => console.error("EMI Schedule listener error:", err));
                     }
 
                     // Listener 4: Expenses
                     onSnapshot(collection(db, "expenses"), (snapshot) => {
                         const expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                        localStorage.setItem('expenses', JSON.stringify(expenses));
-                        document.dispatchEvent(new CustomEvent('expenses-updated'));
+                        document.dispatchEvent(new CustomEvent('expenses-updated', { detail: expenses }));
                     }, (err) => console.error("Expenses sync error:", err));
 
                     // Listener 5: Wallet Transactions
                     onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
                         const transactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                        localStorage.setItem('walletTransactions', JSON.stringify(transactions));
-                        document.dispatchEvent(new CustomEvent('wallet-updated'));
+                        document.dispatchEvent(new CustomEvent('wallet-updated', { detail: transactions }));
                     }, (err) => console.error("Wallet sync error:", err));
 
                     // Sync Company Profile
                     onSnapshot(doc(db, "settings", "companyProfile"), (docSnap) => {
                         if (docSnap.exists()) {
-                            localStorage.setItem('companyProfile', JSON.stringify(docSnap.data()));
-                            updateSidebarProfile();
+                            window.companyProfile = docSnap.data();
+                            updateSidebarProfile(window.companyProfile);
                         }
                     }, (err) => console.error("Company Profile sync error:", err));
 
@@ -338,15 +325,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!isEmployee) {
                         onSnapshot(collection(db, "admin_users"), (snapshot) => {
                             const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
-                            localStorage.setItem('adminUsers', JSON.stringify(admins));
+                            document.dispatchEvent(new CustomEvent('admin-users-updated', { detail: admins }));
                         }, (err) => console.error("Admin Users sync error:", err));
                     }
 
                     // Listener for Employees
                     onSnapshot(collection(db, "employees"), (snapshot) => {
                         const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                        localStorage.setItem('employees', JSON.stringify(employees));
-                        document.dispatchEvent(new CustomEvent('loans-updated'));
+                        window.employees = employees;
+                        document.dispatchEvent(new CustomEvent('employees-updated'));
                     }, (err) => console.error("Employees sync error:", err));
 
                     // Listener for Dashboard Message
@@ -413,143 +400,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize sync status
     updateSyncStatus('synced');
 
-    // Global sync function for manual sync
-    window.manualSync = async () => {
-        if (syncStatus === 'syncing') return;
 
-        updateSyncStatus('syncing');
-        try {
-            // Import sync function from login.js or recreate it
-            const { app } = await import('./firebase-config.js');
-            const { getFirestore, writeBatch, doc, collection, query, where, getDocs } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-            const db = getFirestore(app);
-
-            const loans = JSON.parse(localStorage.getItem('loans')) || [];
-            const employees = JSON.parse(localStorage.getItem('employees')) || [];
-            const expenses = JSON.parse(localStorage.getItem('expenses')) || [];
-            const walletTransactions = JSON.parse(localStorage.getItem('walletTransactions')) || [];
-            const profile = JSON.parse(localStorage.getItem('companyProfile')) || {};
-            const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
-
-            const batchSize = 450;
-            let batches = [];
-            let currentBatch = writeBatch(db);
-            let operationCount = 0;
-
-            const sanitize = (obj) => {
-                try {
-                    return JSON.parse(JSON.stringify(obj));
-                } catch (e) {
-                    console.warn("Failed to sanitize object:", e);
-                    return {};
-                }
-            };
-
-            const addToBatch = (ref, data) => {
-                try {
-                    currentBatch.set(ref, data);
-                    operationCount++;
-                    if (operationCount >= batchSize) {
-                        batches.push(currentBatch);
-                        currentBatch = writeBatch(db);
-                        operationCount = 0;
-                    }
-                } catch (e) {
-                    console.error("Failed to add to batch:", e);
-                }
-            };
-
-            // Process all data types
-            loans.forEach((loan, index) => {
-                try {
-                    const loanId = loan.id || `loan_${Date.now()}_${index}`;
-                    const loanRef = doc(db, "loans", loanId);
-                    addToBatch(loanRef, sanitize(loan));
-                } catch (e) {
-                    console.error("Error processing loan:", e);
-                }
-            });
-
-            employees.forEach((emp, index) => {
-                try {
-                    const empId = emp.id || `emp_${Date.now()}_${index}`;
-                    const empRef = doc(db, "employees", empId);
-                    addToBatch(empRef, sanitize(emp));
-                } catch (e) {
-                    console.error("Error processing employee:", e);
-                }
-            });
-
-            expenses.forEach((exp, index) => {
-                try {
-                    const expId = exp.id || `exp_${Date.now()}_${index}`;
-                    const expRef = doc(db, "expenses", expId);
-                    addToBatch(expRef, sanitize(exp));
-                } catch (e) {
-                    console.error("Error processing expense:", e);
-                }
-            });
-
-            walletTransactions.forEach((trans, index) => {
-                try {
-                    const transId = trans.id || `trans_${Date.now()}_${index}`;
-                    const transRef = doc(db, "wallet_transactions", transId);
-                    addToBatch(transRef, sanitize(trans));
-                } catch (e) {
-                    console.error("Error processing transaction:", e);
-                }
-            });
-
-            // Sync EMI Schedules
-            loans.forEach((loan) => {
-                if (loan.emi_schedule && loan.id) {
-                    try {
-                        const schedRef = doc(db, "emi_schedule", loan.id);
-                        addToBatch(schedRef, sanitize(loan.emi_schedule));
-                    } catch (e) { console.error("Error processing schedule:", e); }
-                }
-            });
-
-            admins.forEach((admin, index) => {
-                try {
-                    const adminRef = doc(db, "admin_users", admin.username);
-                    addToBatch(adminRef, sanitize(admin));
-                } catch (e) {
-                    console.error("Error processing admin:", e);
-                }
-            });
-
-            const profileRef = doc(db, "settings", "companyProfile");
-            addToBatch(profileRef, sanitize(profile));
-
-            if (operationCount > 0) batches.push(currentBatch);
-
-            console.log(`Manual sync: Committing ${batches.length} batches...`);
-
-            // Add timeout
-            const commitPromises = batches.map(batch => batch.commit());
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Sync timeout")), 30000)
-            );
-
-            await Promise.race([
-                Promise.all(commitPromises),
-                timeoutPromise
-            ]);
-
-            updateSyncStatus('synced', 'Manual sync completed');
-            setTimeout(() => updateSyncStatus('synced'), 3000); // Reset after 3 seconds
-
-        } catch (syncError) {
-            console.error("Manual sync failed:", syncError);
-            updateSyncStatus('error', syncError.message);
-            setTimeout(() => updateSyncStatus('synced'), 5000); // Reset after 5 seconds
-        }
-    };
 
     const saveLoans = async (loanData = null, isDelete = false) => {
-        localStorage.setItem('loans', JSON.stringify(loans));
-
         if (db && firestoreOps.doc && loanData) {
             const { doc, setDoc, addDoc, deleteDoc, collection } = firestoreOps;
             try {
@@ -572,7 +425,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const docRef = await addDoc(collection(db, colName), dataToSave);
                         loanData.id = docRef.id;
                         loanData.firestoreCollection = colName;
-                        localStorage.setItem('loans', JSON.stringify(loans)); // Update local with ID
                     }
                 }
             } catch (e) { console.error("Firestore Error:", e); }
@@ -584,10 +436,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SAVE EMI SCHEDULE (New Function) ---
     const saveEmiSchedule = async (loanId, scheduleData) => {
         // Update local memory
-        const loanIdx = loans.findIndex(l => l.id === loanId);
+        const loanIdx = window.loans.findIndex(l => l.id === loanId);
         if (loanIdx > -1) {
-            loans[loanIdx].emi_schedule = scheduleData;
-            localStorage.setItem('loans', JSON.stringify(loans));
+            window.loans[loanIdx].emi_schedule = scheduleData;
         }
 
         // Save to Firestore
@@ -671,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function renderLoans() {
             loanTableBody.innerHTML = ''; // Clear current list
 
-            loans.forEach((loan, index) => {
+            window.loans.forEach((loan, index) => {
                 const row = document.createElement('tr');
 
                 row.innerHTML = `
@@ -700,8 +551,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handle delete action
         function handleDelete(e) {
             const index = e.target.getAttribute('data-index');
-            const loanToDelete = loans[index];
-            loans.splice(index, 1);
+            const loanToDelete = window.loans[index];
+            // No need to splice local array manually, Firestore listener will update it
             saveLoans(loanToDelete, true); // Save to storage
             renderLoans();
         }
@@ -765,8 +616,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const editId = urlParams.get('id');
         const mode = urlParams.get('mode');
 
-        if (mode === 'edit' && editId !== null && loans[editId]) {
-            const loan = loans[editId];
+        if (mode === 'edit' && editId !== null && window.loans[editId]) {
+            const loan = window.loans[editId];
             document.title = "Edit Loan Application";
 
             // Populate Fields
@@ -855,8 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let message = '';
             if (mode === 'edit' && editId !== null) {
                 // Preserve existing data like payments
-                const updatedLoan = { ...loans[editId], ...newLoan };
-                loans[editId] = updatedLoan;
+                const updatedLoan = { ...window.loans[editId], ...newLoan };
                 await saveLoans(updatedLoan);
                 message = 'Loan Application Updated Successfully!';
             } else {
@@ -866,7 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const refNo = `LN${date.getFullYear().toString().slice(-2)}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}-${randomNum}`;
                 newLoan.loanRef = refNo;
 
-                loans.push(newLoan);
                 await saveLoans(newLoan);
                 if (loanStatus === 'Pending') {
                     message = `Application Submitted for Approval!<br>Ref No: <strong>${refNo}</strong>`;
@@ -919,7 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRole = localStorage.getItem('userRole');
                 const currentUser = localStorage.getItem('currentUser');
 
-                const matches = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
+                const matches = window.loans.map((loan, index) => ({ ...loan, originalIndex: index }))
                     .filter(l => {
                         if (userRole !== 'Administrator') {
                             const currentUserEmail = localStorage.getItem('currentUserEmail');
@@ -1006,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
                 const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
                 return matchesName || matchesEmail;
-            }) : loans;
+            }) : window.loans;
 
             // Calculate Stats
             const closedCount = displayLoans.filter(l => getNextDueDate(l) === null).length;
@@ -1405,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- EMPLOYEE PERFORMANCE TABLE LOGIC ---
             const empTableBody = document.getElementById('employee-performance-tbody');
             if (empTableBody) {
-                const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                const employees = window.employees || [];
                 const empStats = {};
 
                 // Initialize stats for all employees
@@ -1461,6 +1310,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderDashboard();
         document.addEventListener('loans-updated', renderDashboard);
+        document.addEventListener('employees-updated', renderDashboard);
 
         // Add Listener for Date Filter
         const finFilter = document.getElementById('fin-overview-filter');
@@ -1498,7 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const today = new Date().toISOString().split('T')[0];
 
                 // Map loans to include original index for editing
-                const borrowerLoans = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
+                const borrowerLoans = window.loans.map((loan, index) => ({ ...loan, originalIndex: index }))
                     .filter(l => l.borrower.trim() === name);
 
                 borrowerLoans.forEach(loan => {
@@ -1531,7 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const btn = e.target;
                     const row = btn.closest('tr');
                     const index = btn.getAttribute('data-index');
-                    const loan = loans[index];
+                    const loan = window.loans[index];
 
                     // Convert cells to inputs
                     const amountCell = row.children[0];
@@ -1553,9 +1403,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newDate = row.children[1].querySelector('input').value;
 
                     if (newAmount && newDate) {
-                        loans[index].amount = newAmount;
-                        loans[index].dueDate = newDate;
-                        saveLoans(loans[index]);
+                        window.loans[index].amount = newAmount;
+                        window.loans[index].dueDate = newDate;
+                        saveLoans(window.loans[index]);
                         renderDashboard(); // Update background stats
                         showBorrowerDetails(currentBorrowerName); // Re-render modal
                     } else {
@@ -1681,7 +1531,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const docId = btn.getAttribute('data-doc-id');
 
                 if (index === '-1' || index === null) {
-                    index = loans.findIndex(l => l.id === docId);
+                    index = window.loans.findIndex(l => l.id === docId);
                 }
 
                 if (index !== -1 && index !== null) {
@@ -1736,7 +1586,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             else if (app.createdAt) dateStr = formatDate(app.createdAt);
                             else dateStr = formatDate(new Date());
 
-                            const globalIndex = loans.findIndex(l => l.id === doc.id);
+                            const globalIndex = window.loans.findIndex(l => l.id === doc.id);
 
                             tr.innerHTML = `
                                 <td style="padding: 12px; border-bottom: 1px solid #eee;">${app.loanRef || '-'}</td>
@@ -1765,7 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- PROFILE PAGE LOGIC (profile.html) ---
     const profileForm = document.getElementById('companyProfileForm');
     if (profileForm) {
-        const savedProfile = JSON.parse(localStorage.getItem('companyProfile')) || {};
+        const savedProfile = window.companyProfile || {};
 
         document.getElementById('cp-name').value = savedProfile.name || '';
         document.getElementById('cp-address').value = savedProfile.address || '';
@@ -1815,7 +1665,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     .then(() => alert('Company details saved to cloud successfully!'))
                     .catch(e => alert('Error saving to cloud: ' + e.message));
             } else {
-                localStorage.setItem('companyProfile', JSON.stringify(profile));
                 alert('Company details saved locally!');
                 updateSidebarProfile();
             }
@@ -1837,7 +1686,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const userRole = localStorage.getItem('userRole');
             const currentUser = localStorage.getItem('currentUser');
             const currentUserEmail = localStorage.getItem('currentUserEmail');
-            let activeLoansList = loans.map((loan, index) => ({ ...loan, originalIndex: index }))
+            let activeLoansList = window.loans.map((loan, index) => ({ ...loan, originalIndex: index }))
                 .filter(l => {
                     if (userRole !== 'Administrator') {
                         const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
@@ -1923,7 +1772,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         function openLoanProfileModal(index) {
-            const loan = loans[index];
+            const loan = window.loans[index];
             if (!loan) return;
 
             // Initialize paid installments
@@ -2098,19 +1947,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lIdx = e.target.getAttribute('data-loan-index');
                     const inst = parseInt(e.target.getAttribute('data-installment'));
                     if (confirm('Confirm full payment?')) {
-                        if (!loans[lIdx].emi_schedule) loans[lIdx].emi_schedule = {};
+                        if (!window.loans[lIdx].emi_schedule) window.loans[lIdx].emi_schedule = {};
 
-                        loans[lIdx].emi_schedule[inst] = {
+                        window.loans[lIdx].emi_schedule[inst] = {
                             status: 'Paid',
                             amountPaid: emi,
                             date: new Date().toISOString()
                         };
 
-                        saveEmiSchedule(loans[lIdx].id, loans[lIdx].emi_schedule);
+                        saveEmiSchedule(window.loans[lIdx].id, window.loans[lIdx].emi_schedule);
 
                         // WhatsApp Receipt
-                        if (loans[lIdx].mobile && loans[lIdx].mobile !== 'N/A') {
-                            const msg = `Payment Receipt\n\nDear ${loans[lIdx].borrower},\nReceived with thanks: ₹${emi.toFixed(2)}\nTowards: Installment #${inst}\nDate: ${payDate.toLocaleDateString()}\n\nThank you!`;
+                        if (window.loans[lIdx].mobile && window.loans[lIdx].mobile !== 'N/A') {
+                            const msg = `Payment Receipt\n\nDear ${window.loans[lIdx].borrower},\nReceived with thanks: ₹${emi.toFixed(2)}\nTowards: Installment #${inst}\nDate: ${new Date().toLocaleDateString()}\n\nThank you!`;
                             if (confirm("Open WhatsApp to send receipt?")) {
                                 window.open(`https://wa.me/${loans[lIdx].mobile}?text=${encodeURIComponent(msg)}`, '_blank');
                             }
@@ -2125,14 +1974,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (amountStr) {
                         const amount = parseFloat(amountStr);
                         if (!isNaN(amount) && amount > 0) {
-                            if (!loans[lIdx].emi_schedule) loans[lIdx].emi_schedule = {};
-                            const current = (loans[lIdx].emi_schedule[inst] && loans[lIdx].emi_schedule[inst].amountPaid) ? parseFloat(loans[lIdx].emi_schedule[inst].amountPaid) : 0;
-                            loans[lIdx].emi_schedule[inst] = {
+                            if (!window.loans[lIdx].emi_schedule) window.loans[lIdx].emi_schedule = {};
+                            const current = (window.loans[lIdx].emi_schedule[inst] && window.loans[lIdx].emi_schedule[inst].amountPaid) ? parseFloat(window.loans[lIdx].emi_schedule[inst].amountPaid) : 0;
+                            window.loans[lIdx].emi_schedule[inst] = {
                                 status: 'Partial',
                                 amountPaid: current + amount,
                                 date: new Date().toISOString()
                             };
-                            saveEmiSchedule(loans[lIdx].id, loans[lIdx].emi_schedule);
+                            saveEmiSchedule(window.loans[lIdx].id, window.loans[lIdx].emi_schedule);
                             openLoanProfileModal(lIdx);
                         } else {
                             alert("Invalid amount entered.");
@@ -2306,7 +2155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (loan.penalties) loan.penalties.splice(index, 1);
                         }
 
-                        if (source !== 'emi_schedule') saveLoans(loans[index]);
+                        if (source !== 'emi_schedule') saveLoans(window.loans[index]);
                         openLoanProfileModal(index);
                         return;
                     }
@@ -2325,7 +2174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 } else {
                                     // Legacy fallback
                                     if (!loan.paidDates) loan.paidDates = {}; loan.paidDates[inst] = newDate.toISOString();
-                                    saveLoans(loans[index]);
+                                    saveLoans(window.loans[index]);
                                 }
                                 openLoanProfileModal(index);
                             } else {
@@ -2405,7 +2254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 amount: amount,
                                 description: desc
                             });
-                            saveLoans(loans[index]);
+                            saveLoans(window.loans[index]);
                             openLoanProfileModal(index);
                         } else {
                             alert("Invalid amount.");
@@ -2424,7 +2273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Auto-open modal if ID is in URL
         const urlParams = new URLSearchParams(window.location.search);
         const loanId = urlParams.get('id');
-        if (loanId !== null && loans[loanId]) {
+        if (loanId !== null && window.loans[loanId]) {
             openLoanProfileModal(loanId);
         }
     }
@@ -2434,7 +2283,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewProfileForm) {
         const urlParams = new URLSearchParams(window.location.search);
         const loanIndex = urlParams.get('id');
-        const loan = loans[loanIndex];
+        const loan = window.loans[loanIndex];
 
         if (loan) {
             const userRole = localStorage.getItem('userRole');
@@ -2524,7 +2373,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentUserEmail = localStorage.getItem('currentUserEmail');
 
             const borrowerStats = {};
-            loans.forEach((loan, index) => {
+            window.loans.forEach((loan, index) => {
                 const matchesName = (loan.assignedTo === currentUser || loan.createdBy === currentUser);
                 const matchesEmail = (loan.employeeEmail && loan.employeeEmail === currentUserEmail);
 
@@ -2646,7 +2495,7 @@ document.addEventListener('DOMContentLoaded', () => {
             exportBtn.addEventListener('click', () => {
                 // 1. Aggregate Data (Same logic as renderBorrowers)
                 const borrowerStats = {};
-                loans.forEach((loan, index) => {
+                window.loans.forEach((loan, index) => {
                     const name = loan.borrower.trim();
                     const isClosed = getNextDueDate(loan) === null;
 
@@ -2709,10 +2558,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.classList.contains('delete-borrower-btn')) {
                 const name = e.target.getAttribute('data-name');
                 if (confirm(`Are you sure you want to delete borrower "${name}" and ALL associated loans? This action cannot be undone.`)) {
-                    const loansToDelete = loans.filter(l => l.borrower.trim() === name);
+                    const loansToDelete = window.loans.filter(l => l.borrower.trim() === name);
 
                     // Remove from local array
-                    loans = loans.filter(l => l.borrower.trim() !== name);
+                    // window.loans = window.loans.filter(l => l.borrower.trim() !== name); // Firestore listener will handle this
 
                     // Sync changes (Save new array to LS, delete docs from Firestore)
                     // Use Promise.all to wait for all async deletions to complete
@@ -2741,7 +2590,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentUserEmail = localStorage.getItem('currentUserEmail');
 
             const today = new Date().toISOString().split('T')[0];
-            const overdueLoans = loans.filter(l => {
+            const overdueLoans = window.loans.filter(l => {
                 if (userRole !== 'Administrator') {
                     const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
                     const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
@@ -2755,7 +2604,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #27ae60;">No overdue loans!</td></tr>';
             } else {
                 overdueLoans.forEach((loan) => {
-                    const index = loans.indexOf(loan);
+                    const index = window.loans.indexOf(loan);
                     const nextDue = getNextDueDate(loan);
                     const nextDueDisplay = nextDue ? formatDate(nextDue) : 'N/A';
                     const row = document.createElement('tr');
@@ -2809,7 +2658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentUser = localStorage.getItem('currentUser');
             const currentUserEmail = localStorage.getItem('currentUserEmail');
 
-            const closedLoans = loans.filter(l => {
+            const closedLoans = window.loans.filter(l => {
                 if (userRole !== 'Administrator') {
                     const matchesName = (l.assignedTo === currentUser || l.createdBy === currentUser);
                     const matchesEmail = (l.employeeEmail && l.employeeEmail === currentUserEmail);
@@ -2823,7 +2672,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 closedLoans.forEach((loan) => {
                     // Find original index for reference
-                    const originalIndex = loans.indexOf(loan);
+                    const originalIndex = window.loans.indexOf(loan);
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
@@ -2852,14 +2701,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.classList.contains('delete-closed-loan-btn')) {
                 const index = e.target.getAttribute('data-index');
                 if (confirm('Are you sure you want to permanently delete this closed loan record?')) {
-                    const loanToDelete = loans[index];
-                    loans.splice(index, 1);
+                    const loanToDelete = window.loans[index];
                     saveLoans(loanToDelete, true);
                     renderClosedLoans();
                 }
             } else if (e.target.classList.contains('download-cert-btn')) {
                 const index = e.target.getAttribute('data-index');
-                const loan = loans[index];
+                const loan = window.loans[index];
 
                 document.getElementById('cert-borrower').textContent = loan.borrower;
                 document.getElementById('cert-ref').textContent = loan.loanRef || `LN-${parseInt(index) + 1001}`;
@@ -2884,7 +2732,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (paymentTable) {
         const urlParams = new URLSearchParams(window.location.search);
         const loanIndex = urlParams.get('id');
-        const loan = loans[loanIndex];
+        const loan = window.loans[loanIndex];
         const paymentInfo = document.getElementById('payment-info');
         const tbody = paymentTable.querySelector('tbody');
 
@@ -2961,7 +2809,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             amountPaid: emi,
                             date: new Date().toISOString()
                         };
-                        loans[loanIndex] = loan; // Update specific loan
+                        window.loans[loanIndex] = loan; // Update specific loan
                         saveLoans(loan);
 
                         // WhatsApp Receipt
@@ -3076,7 +2924,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const alerts = [];
 
-            loans.forEach((loan, index) => {
+            window.loans.forEach((loan, index) => {
                 const nextDue = getNextDueDate(loan);
                 if (!nextDue) return; // Skip closed loans
 

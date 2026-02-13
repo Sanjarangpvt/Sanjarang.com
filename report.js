@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (loan.emi_schedule) {
             Object.entries(loan.emi_schedule).forEach(([inst, entry]) => {
-                if (entry.status === 'Paid') {
+                if (entry.status === 'Paid' || entry.status === 'Partial') {
                     const val = parseFloat(entry.amountPaid) || 0;
                     totalRepaid += val;
 
@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const paymentDate = entry.date.toDate ? entry.date.toDate() : new Date(entry.date);
                         timeline.push({
                             date: paymentDate,
-                            description: `EMI Received - ${loan.borrower} (#${inst})`,
+                            description: `${entry.status === 'Paid' ? 'EMI Received' : 'Partial Payment'} - ${loan.borrower} (#${inst})`,
                             type: 'Repayment',
                             amount: val,
                             color: '#27ae60'
@@ -198,38 +198,100 @@ document.addEventListener('DOMContentLoaded', async () => {
         const incentiveData = {}; // key: YYYY-MM_email
 
         myLoans.forEach(loan => {
-            if (!loan.emi_schedule) return;
-
             // Get Employee Name
-            const email = loan.employeeEmail || 'unknown';
-            const empName = employeeMap[email] || email || 'Unknown Employee';
+            let email = loan.employeeEmail;
+            let empName = email ? employeeMap[email] : null;
 
-            Object.values(loan.emi_schedule).forEach(payment => {
-                if (payment.status === 'Paid' && payment.date) {
-                    const amount = parseFloat(payment.amountPaid) || 0;
-                    if (amount <= 0) return;
-
-                    // Parse Date
-                    let pDate;
-                    if (payment.date.toDate) pDate = payment.date.toDate();
-                    else pDate = new Date(payment.date);
-
-                    if (isNaN(pDate.getTime())) return;
-
-                    const monthKey = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-                    const groupKey = `${monthKey}_${email}`;
-
-                    if (!incentiveData[groupKey]) {
-                        incentiveData[groupKey] = {
-                            monthRaw: monthKey,
-                            monthDisplay: pDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
-                            empName: empName,
-                            totalCollected: 0
-                        };
-                    }
-                    incentiveData[groupKey].totalCollected += amount;
+            // Fallback: If email is missing, try to use assignedTo name
+            if (!empName && loan.assignedTo) {
+                empName = loan.assignedTo;
+                if (!email) {
+                    // Try to find email from map using name, otherwise use name as key
+                    const found = Object.entries(employeeMap).find(([k, v]) => v === empName);
+                    if (found) email = found[0];
+                    else email = empName;
                 }
-            });
+            }
+            if (!email) email = 'unknown';
+            if (!empName) empName = 'Unknown';
+
+            // Helper to add to incentiveData
+            const addToIncentive = (amount, dateInput) => {
+                if (amount <= 0 || !dateInput) return;
+
+                let pDate;
+                if (dateInput.toDate) {
+                    pDate = dateInput.toDate();
+                } else {
+                    pDate = new Date(dateInput);
+                }
+
+                if (isNaN(pDate.getTime())) return;
+
+                const monthKey = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+                const groupKey = `${monthKey}_${email}`;
+
+                if (!incentiveData[groupKey]) {
+                    incentiveData[groupKey] = {
+                        monthRaw: monthKey,
+                        monthDisplay: pDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                        empName: empName,
+                        totalCollected: 0
+                    };
+                }
+                incentiveData[groupKey].totalCollected += amount;
+            };
+
+            // 1. Check EMI Schedule (Preferred)
+            if (loan.emi_schedule) {
+                Object.values(loan.emi_schedule).forEach(payment => {
+                    if ((payment.status === 'Paid' || payment.status === 'Partial') && payment.date) {
+                        const amount = parseFloat(payment.amountPaid) || 0;
+                        addToIncentive(amount, payment.date);
+                    }
+                });
+            }
+            // 2. Legacy Support (Only if no emi_schedule found)
+            else {
+                const P = parseFloat(loan.amount) || 0;
+                const R = parseFloat(loan.interest) || 0;
+                const N = parseInt(loan.tenure) || 1;
+                const emi = (P / N) + (P * (R / 100));
+
+                // Full Installments
+                if (loan.paidInstallments && Array.isArray(loan.paidInstallments)) {
+                    loan.paidInstallments.forEach(inst => {
+                        let payDate = null;
+                        if (loan.paidDates && loan.paidDates[inst]) {
+                            payDate = loan.paidDates[inst];
+                        } else if (loan.dueDate) {
+                            const d = loan.dueDate.toDate ? loan.dueDate.toDate() : new Date(loan.dueDate);
+                            if (!isNaN(d.getTime())) {
+                                d.setMonth(d.getMonth() + parseInt(inst));
+                                payDate = d;
+                            }
+                        }
+                        addToIncentive(emi, payDate);
+                    });
+                }
+
+                // Partial Payments
+                if (loan.partialPayments && typeof loan.partialPayments === 'object') {
+                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                        let payDate = null;
+                        if (loan.partialPaymentDates && loan.partialPaymentDates[inst]) {
+                            payDate = loan.partialPaymentDates[inst];
+                        } else if (loan.dueDate) {
+                            const d = loan.dueDate.toDate ? loan.dueDate.toDate() : new Date(loan.dueDate);
+                            if (!isNaN(d.getTime())) {
+                                d.setMonth(d.getMonth() + parseInt(inst));
+                                payDate = d;
+                            }
+                        }
+                        addToIncentive(parseFloat(amount), payDate);
+                    });
+                }
+            }
         });
 
         const sortedIncentives = Object.values(incentiveData).sort((a, b) => b.monthRaw.localeCompare(a.monthRaw));

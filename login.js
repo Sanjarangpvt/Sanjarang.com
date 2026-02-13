@@ -151,7 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     loans.forEach((loan, index) => {
                         try {
                             const loanId = loan.id || `loan_${Date.now()}_${index}`;
-                            const loanRef = doc(db, "loans", loanId);
+                            const collectionName = (loan.status === 'Pending') ? "loan_applications" : "loans";
+                            const loanRef = doc(db, collectionName, loanId);
                             addToBatch(loanRef, sanitize(loan));
                         } catch (e) {
                             console.error("Error processing loan:", e);

@@ -43,22 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return `${day}/${month}/${year}`;
         };
 
-        // Load Transactions Safely
-        const getLocalJSON = (key) => {
-            try {
-                const data = localStorage.getItem(key);
-                return data ? JSON.parse(data) : [];
-            } catch (e) {
-                console.error(`Error parsing localStorage key "${key}":`, e);
-                return [];
-            }
-        };
-
         let walletChart = null;
         let expenseChart = null;
-        let walletTransactions = getLocalJSON('walletTransactions');
-        let loans = getLocalJSON('loans');
-        let expenses = getLocalJSON('expenses');
+        let walletTransactions = [];
+        let loans = [];
+        let expenses = [];
 
         // --- FIRESTORE SETUP ---
         let db;
@@ -74,14 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sync Manual Transactions
                 onSnapshot(collection(db, "wallet_transactions"), (snapshot) => {
                     walletTransactions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                    localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
                     renderWallet();
                 }, (err) => console.error("Wallet Transactions listener error:", err));
 
                 // Sync Expenses
                 onSnapshot(collection(db, "expenses"), (snapshot) => {
                     expenses = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                    localStorage.setItem('expenses', JSON.stringify(expenses));
                     renderWallet();
                 }, (err) => console.error("Expenses listener error:", err));
             } catch (e) { console.error("Firestore init failed:", e); }
@@ -90,17 +77,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Listen for updates from app.js
         document.addEventListener('loans-updated', () => {
-            loans = getLocalJSON('loans');
+            loans = window.loans || [];
             renderWallet();
         });
 
         document.addEventListener('wallet-updated', () => {
-            walletTransactions = getLocalJSON('walletTransactions');
+            // app.js might not be tracking walletTransactions globally, but if it does:
+            // walletTransactions = window.walletTransactions || [];
             renderWallet();
         });
 
         document.addEventListener('expenses-updated', () => {
-            expenses = getLocalJSON('expenses');
+            expenses = window.expenses || [];
             renderWallet();
         });
 
@@ -494,10 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (db && firestoreOps.deleteDoc && id) {
                             firestoreOps.deleteDoc(firestoreOps.doc(db, "wallet_transactions", id))
                                 .catch(e => alert("Error deleting: " + e.message));
-                        } else {
-                            walletTransactions.splice(index, 1);
-                            localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
-                            renderWallet();
                         }
                     }
                 } else {
@@ -613,12 +597,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     await firestoreOps.addDoc(firestoreOps.collection(db, "wallet_transactions"), newTrans);
                     transModal.style.display = 'none';
                     transForm.reset();
-                } else {
-                    walletTransactions.push(newTrans);
-                    localStorage.setItem('walletTransactions', JSON.stringify(walletTransactions));
-                    transModal.style.display = 'none';
-                    transForm.reset();
-                    renderWallet();
                 }
             });
         }

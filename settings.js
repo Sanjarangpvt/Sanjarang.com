@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Sync Employees
                     onSnapshot(collection(db, "employees"), (snapshot) => {
                         const employees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                        localStorage.setItem('employees', JSON.stringify(employees));
+                        window.employees = employees;
                         if (typeof renderEmployees === 'function') renderEmployees();
                         hideSpinner();
                     }, (error) => { console.error("Employees sync error:", error); hideSpinner(); });
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Sync Admins
                     onSnapshot(collection(db, "admin_users"), (snapshot) => {
                         const admins = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
-                        localStorage.setItem('adminUsers', JSON.stringify(admins));
+                        window.adminUsers = admins;
                         if (typeof renderAdmins === 'function') renderAdmins();
                     }, (error) => console.error("Admins sync error:", error));
 
@@ -140,7 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Queue Operations
                 loans.forEach((loan, index) => {
                     const loanId = loan.id || `loan_${Date.now()}_${index}`;
-                    const loanRef = doc(db, "loans", loanId);
+                    const collectionName = (loan.status === 'Pending') ? "loan_applications" : "loans";
+                    const loanRef = doc(db, collectionName, loanId);
                     addToBatch(loanRef, sanitize(loan));
                 });
 
@@ -276,7 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Queue Operations
                     loans.forEach((loan, index) => {
                         const loanId = loan.id || `loan_${Date.now()}_${index}`;
-                        const loanRef = doc(db, "loans", loanId);
+                        const collectionName = (loan.status === 'Pending') ? "loan_applications" : "loans";
+                        const loanRef = doc(db, collectionName, loanId);
                         addToBatch(loanRef, sanitize(loan));
                     });
 
@@ -355,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (backupBtn) {
         backupBtn.addEventListener('click', () => {
             const data = {
-                loans: JSON.parse(localStorage.getItem('loans')) || [],
+                loans: JSON.parse(docSnap.data().loans) || [],
                 employees: JSON.parse(localStorage.getItem('employees')) || [],
                 expenses: JSON.parse(localStorage.getItem('expenses')) || [],
                 walletTransactions: JSON.parse(localStorage.getItem('walletTransactions')) || [],
@@ -389,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.querySelector('#employee-table tbody');
         if (!tbody) return;
 
-        const employees = JSON.parse(localStorage.getItem('employees')) || [];
+        const employees = window.employees || [];
         tbody.innerHTML = '';
 
         if (employees.length === 0) {
@@ -420,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 const target = e.target.closest('.view-emp-btn');
                 const index = target.getAttribute('data-index');
-                const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                const employees = window.employees || [];
                 const emp = employees[index];
 
                 if (emp) {
@@ -468,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.edit-emp-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const idx = e.target.getAttribute('data-index');
-                const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                const employees = window.employees || [];
                 const emp = employees[idx];
 
                 document.getElementById('emp-id').value = emp.id;
@@ -501,14 +503,10 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 const idx = e.target.getAttribute('data-index');
                 if (confirm('Delete this employee?')) {
-                    const employees = JSON.parse(localStorage.getItem('employees')) || [];
+                    const employees = window.employees || [];
                     const emp = employees[idx];
                     if (db && firestoreOps.deleteDoc && emp.id) {
                         firestoreOps.deleteDoc(firestoreOps.doc(db, "employees", emp.id));
-                    } else {
-                        employees.splice(idx, 1);
-                        localStorage.setItem('employees', JSON.stringify(employees));
-                        renderEmployees();
                     }
                 }
             });
@@ -518,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.generate-id-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const idx = e.target.getAttribute('data-index');
-                const emp = JSON.parse(localStorage.getItem('employees'))[idx];
+                const emp = (window.employees || [])[idx];
 
                 // Populate Template
                 document.getElementById('card-name').textContent = emp.name;
@@ -610,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: new Date().toISOString()
             };
 
-            let employees = JSON.parse(localStorage.getItem('employees')) || [];
+            let employees = window.employees || [];
 
             if (editingIndex >= 0) {
                 // Update Existing (Local Check)
@@ -628,11 +626,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (db && firestoreOps.setDoc) {
                     await firestoreOps.setDoc(firestoreOps.doc(db, "employees", newEmployee.id), newEmployee);
                     alert('Employee Updated Successfully!');
-                } else {
-                    employees[editingIndex] = newEmployee;
-                    localStorage.setItem('employees', JSON.stringify(employees));
-                    renderEmployees();
-                    alert('Employee Updated Locally!');
                 }
 
                 editingIndex = -1;
@@ -648,11 +641,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (db && firestoreOps.setDoc) {
                     await firestoreOps.setDoc(firestoreOps.doc(db, "employees", newEmployee.id), newEmployee);
                     alert('Employee ID Created Successfully!');
-                } else {
-                    employees.push(newEmployee);
-                    localStorage.setItem('employees', JSON.stringify(employees));
-                    renderEmployees();
-                    alert('Employee ID Created Locally!');
                 }
             }
 
@@ -682,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminProfileForm) {
         const currentUserEmail = localStorage.getItem('currentUserEmail') || '';
         const currentUsername = localStorage.getItem('currentUser') || 'admin';
-        const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+        const admins = window.adminUsers || [];
 
         // Find current user data
         let userObj = admins.find(a => a.email && a.email.toLowerCase() === currentUserEmail.toLowerCase());
@@ -703,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!newUsername || !newEmail) { alert('Username and Email are required'); return; }
 
-            let currentAdmins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+            let currentAdmins = window.adminUsers || [];
 
             // Check if new email is taken by SOMEONE ELSE
             const isEmailTaken = currentAdmins.some(a => a.email && a.email.toLowerCase() === newEmail.toLowerCase() && a.email.toLowerCase() !== currentUserEmail.toLowerCase());
@@ -727,10 +715,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // Save the document with the new email as the ID
                 await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", newEmail), adminData);
-            } else {
-                if (targetIndex === -1) currentAdmins.push(adminData);
-                else currentAdmins[targetIndex] = adminData;
-                localStorage.setItem('adminUsers', JSON.stringify(currentAdmins));
             }
 
             localStorage.setItem('currentUser', newUsername);
@@ -762,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderAdmins = () => {
         if (!adminTableBody) return;
-        const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+        const admins = window.adminUsers || [];
         adminTableBody.innerHTML = '';
 
         if (admins.length === 0) {
@@ -789,10 +773,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (db && firestoreOps.deleteDoc) {
                         // Use email as the ID to delete
                         firestoreOps.deleteDoc(firestoreOps.doc(db, "admin_users", admin.email || admin.username || admin.firestoreId));
-                    } else {
-                        admins.splice(idx, 1);
-                        localStorage.setItem('adminUsers', JSON.stringify(admins));
-                        renderAdmins();
                     }
                 }
             });
@@ -808,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = document.getElementById('admin-role').value;
 
             if (email && p) {
-                const admins = JSON.parse(localStorage.getItem('adminUsers')) || [];
+                const admins = window.adminUsers || [];
                 if (admins.some(a => a.email && a.email.toLowerCase() === email.toLowerCase())) {
                     alert('An admin with this email already exists!');
                     return;
@@ -817,10 +797,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (db && firestoreOps.setDoc) {
                     // Use the email as the document ID and also save it in the document
                     await firestoreOps.setDoc(firestoreOps.doc(db, "admin_users", email), { username: email, email: email, password: p, role: r });
-                } else {
-                    admins.push({ username: email, email: email, password: p, role: r });
-                    localStorage.setItem('adminUsers', JSON.stringify(admins));
-                    renderAdmins();
                 }
 
                 createAdminForm.reset();
@@ -979,7 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clearBgBtn) {
         if (localStorage.getItem('appCustomBg')) clearBgBtn.style.display = 'inline-block';
         clearBgBtn.addEventListener('click', () => {
-            localStorage.removeItem('appCustomBg');
+            DeleteDoc('appCustomBg');
             document.body.classList.remove('custom-bg-active');
             const overlay = document.getElementById('bg-overlay');
             if (overlay) overlay.style.backgroundImage = '';
@@ -999,11 +975,11 @@ document.addEventListener('DOMContentLoaded', () => {
         resetThemeBtn.addEventListener('click', () => {
             if (confirm('Are you sure you want to reset all theme settings to default?')) {
                 // Clear LocalStorage
-                localStorage.removeItem('appTheme');
-                localStorage.removeItem('appCustomBg');
-                localStorage.removeItem('appBgOpacity');
-                localStorage.removeItem('appBgBlur');
-                localStorage.removeItem('appThemeTransparency');
+                DeleteDoc('appTheme');
+                DeleteDoc('appCustomBg');
+                DeleteDoc('appBgOpacity');
+                DeleteDoc('appBgBlur');
+                DeleteDoc('appThemeTransparency');
 
                 // Reset UI Controls
                 if (bgOpacityInput) { bgOpacityInput.value = '1'; if (opacityValDisplay) opacityValDisplay.textContent = '100%'; }

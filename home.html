@@ -41,7 +41,7 @@
                 <img src="LOGOS/logo.jpg" alt="Loan Book Logo">
                 <div class="brand-text">
                     <span class="brand-title">SANJARANG GROUP</span>
-                    <span class="brand-subtitle">business</span>
+                    <span class="brand-subtitle">Trusted Financial Partner</span>
                 </div>
             </a>
 
@@ -171,6 +171,7 @@
         </div>
         <div class="footer-bottom">
             <p>&copy; 2026 Sanjarang Group. All rights reserved.</p>
+            <p> Web Version : 1.0.0.5 (Last Updated: 2026-02-13)</p>
         </div>
     </footer>
 
@@ -319,7 +320,7 @@
                     searchLoanBtn.style.opacity = "0.7";
 
                     setTimeout(() => {
-                        const loans = JSON.parse(localStorage.getItem('loans')) || [];
+                        const loans = JSON.parse(docSnap.data().loans) || [];
                         const loan = loans.find(l =>
                             (l.loanRef && l.loanRef.toLowerCase() === query) ||
                             (l.mobile && l.mobile === query) ||

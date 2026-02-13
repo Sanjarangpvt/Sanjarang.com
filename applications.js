@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModal = document.querySelector('.close');
     const confirmRejectBtn = document.getElementById('confirm-reject-btn');
     const rejectReasonInput = document.getElementById('reject-reason');
-    
+
     let currentRejectId = null;
 
     // Helper to format date
@@ -21,12 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderApplications = () => {
-        const loans = JSON.parse(localStorage.getItem('loans')) || [];
+        const loans = window.loans || [];
         // Filter for applications specifically from the 'loan_applications' collection
         const applications = loans.filter(l => l.firestoreCollection === 'loan_applications');
-        
+
         const query = searchInput.value.toLowerCase();
-        const filtered = applications.filter(app => 
+        const filtered = applications.filter(app =>
             (app.borrower || '').toLowerCase().includes(query) ||
             (app.loanRef || '').toLowerCase().includes(query)
         );
@@ -44,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (app.status === 'Rejected') statusColor = '#e74c3c'; // Rejected (Red)
 
             // Determine Actions
-            const actionButtons = app.status === 'Rejected' 
-                ? `<button class="action-btn btn-view" data-id="${app.id}">View</button>` 
+            const actionButtons = app.status === 'Rejected'
+                ? `<button class="action-btn btn-view" data-id="${app.id}">View</button>`
                 : `<button class="action-btn btn-view" data-id="${app.id}">View</button>
                    <button class="action-btn btn-approve" data-id="${app.id}">Approve</button>
                    <button class="action-btn btn-reject" data-id="${app.id}">Reject</button>`;
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = btn.getAttribute('data-id');
         if (!id) return;
 
-        const loans = JSON.parse(localStorage.getItem('loans')) || [];
+        const loans = window.loans || [];
         const loan = loans.find(l => l.id === id);
         const index = loans.findIndex(l => l.id === id);
 
@@ -85,12 +85,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('btn-view')) {
             // Open Loan Profile
             window.open(`loan-profile.html?id=${index}`, '_blank');
-        } 
+        }
         else if (btn.classList.contains('btn-approve')) {
             if (confirm(`Approve loan for ${loan.borrower}?`)) {
                 await approveLoan(loan);
             }
-        } 
+        }
         else if (btn.classList.contains('btn-reject')) {
             currentRejectId = id;
             rejectReasonInput.value = '';
@@ -109,10 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Please enter a reason for rejection.");
                 return;
             }
-            
-            const loans = JSON.parse(localStorage.getItem('loans')) || [];
+
+            const loans = window.loans || [];
             const loan = loans.find(l => l.id === currentRejectId);
-            
+
             if (loan) {
                 await rejectLoan(loan, reason);
                 rejectModal.style.display = 'none';
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- LOGIC TO MOVE DATA BETWEEN COLLECTIONS ---
-    
+
     async function approveLoan(loan) {
         if (window.saveLoans) {
             // 1. Delete from 'loan_applications'

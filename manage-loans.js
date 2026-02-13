@@ -70,7 +70,7 @@ function initManageLoansPage() {
 
     // --- MAIN RENDER LOGIC ---
     const renderTable = () => {
-        const loans = JSON.parse(localStorage.getItem('loans')) || [];
+        const loans = window.loans || [];
         const tbody = document.getElementById('manage-loans-tbody');
         const searchInput = document.getElementById('loan-search-input');
         const filterSelect = document.getElementById('loan-filter-select');
@@ -222,7 +222,7 @@ function initManageLoansPage() {
         // Confirm Delete
         confirmDeleteBtn.addEventListener('click', async () => {
             if (loanToDeleteIndex !== null) {
-                const loans = JSON.parse(localStorage.getItem('loans')) || [];
+                const loans = window.loans || [];
                 const loanToDelete = loans[loanToDeleteIndex];
 
                 // Delete from Firestore
@@ -237,12 +237,8 @@ function initManageLoansPage() {
                 }
 
                 // Delete from LocalStorage
-                loans.splice(loanToDeleteIndex, 1);
-                localStorage.setItem('loans', JSON.stringify(loans));
-
-                // Dispatch update event for app.js to pick up
-                document.dispatchEvent(new CustomEvent('loans-updated'));
-                renderTable();
+                // No need to update local storage or manually render. 
+                // The Firestore listener in app.js will detect the deletion, update window.loans, and fire 'loans-updated'.
                 closeDeleteModal();
             }
         });

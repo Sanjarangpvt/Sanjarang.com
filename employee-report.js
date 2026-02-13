@@ -56,8 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const allLoans = JSON.parse(localStorage.getItem('loans')) || [];
-        const allEmployees = JSON.parse(localStorage.getItem('employees')) || [];
+        const allLoans = window.loans || [];
+        const allEmployees = window.employees || [];
+
+        // Prevent "Employee not found" error while data is loading
+        if (allEmployees.length === 0) {
+            return;
+        }
 
         const employee = allEmployees.find(emp => emp.email === employeeEmail);
         if (!employee) {
@@ -96,11 +101,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalCollected += Object.values(loan.emi_schedule).reduce((sum, entry) => {
                     return sum + parseFloat(entry.amountPaid || 0);
                 }, 0);
+            } else {
+                // Legacy Support
+                const P = parseFloat(loan.amount) || 0;
+                const R = parseFloat(loan.interest) || 0;
+                const N = parseInt(loan.tenure) || 1;
+                const emi = (P / N) + (P * (R / 100));
+
+                if (loan.paidInstallments) {
+                    totalCollected += loan.paidInstallments.length * emi;
+                }
+                if (loan.partialPayments) {
+                    Object.entries(loan.partialPayments).forEach(([inst, amount]) => {
+                        if (!loan.paidInstallments || !loan.paidInstallments.includes(parseInt(inst))) {
+                            totalCollected += parseFloat(amount);
+                        }
+                    });
+                }
             }
 
             // Check status
             const nextDue = getNextDueDate(loan);
-            if (nextDue === null) {
+            if (loan.status === 'Closed' || nextDue === null) {
                 closedLoans++;
             } else {
                 activeLoans++;
@@ -137,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let statusColor = '#f39c12'; // Pending
                 if (status !== 'Pending' && status !== 'Rejected') {
                     const nextDue = getNextDueDate(loan);
-                    if (nextDue === null) {
+                    if (status === 'Closed' || nextDue === null) {
                         status = 'Closed';
                         statusColor = '#95a5a6';
                     } else if (nextDue.toISOString().split('T')[0] < today) {
@@ -187,4 +209,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial render and listen for updates from the main app script
     renderReport();
     document.addEventListener('loans-updated', renderReport);
+    document.addEventListener('employees-updated', renderReport);
 });
