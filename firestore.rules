@@ -2,65 +2,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
-    function isSignedIn() {
+    // Helper function: Check if user is logged in
+    function isAuth() {
       return request.auth != null;
     }
 
-    // Checks if the user is an admin by looking up their email in the admin_users collection
+    // Helper function: Check if user is an Admin
+    // Checks if the user's email exists in the 'admin_users' collection
     function isAdmin() {
-      return isSignedIn() &&
-             exists(/databases/$(database)/documents/admin_users/$(request.auth.token.email)) &&
-             get(/databases/$(database)/documents/admin_users/$(request.auth.token.email)).data.role == 'Administrator';
+      return isAuth() && exists(/databases/$(database)/documents/admin_users/$(request.auth.token.email));
     }
 
-    // --- Collection Rules ---
+    // 1. Admin Users Collection (Only Admins can touch this)
+    match /admin_users/{email} {
+      allow read, write: if isAdmin();
+    }
 
-    // 1. Admin Users: Only Admins can manage; Users can read their own entry
-    match /admin_users/{userEmail} {
-      allow read: if isSignedIn() && (request.auth.token.email == userEmail || isAdmin());
+    // 2. Settings (Company Profile, etc.)
+    match /settings/{document=**} {
+      allow read: if isAuth(); // Employees need to see company name/logo
       allow write: if isAdmin();
     }
 
-    // 2. Employees: Employees can read their own profile (by email match); Admins manage all
-    match /employees/{employeeId} {
-      allow read: if isSignedIn() && (resource.data.email == request.auth.token.email || isAdmin());
-      allow update: if isSignedIn() && (resource.data.email == request.auth.token.email || isAdmin());
-      allow create, delete: if isAdmin();
+    // 3. Employees Collection
+    match /employees/{empId} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || (isAuth() && request.auth.token.email == resource.data.email);
     }
 
-    // 3. Loan Applications: Employees can read/write applications they created/assigned
-    match /loan_applications/{appId} {
-      allow read: if isSignedIn() && (resource.data.employeeEmail == request.auth.token.email || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.employeeEmail == request.auth.token.email || isAdmin());
-      allow update, delete: if isSignedIn() && (resource.data.employeeEmail == request.auth.token.email || isAdmin());
-    }
-
-    // 4. Loans: Employees can read/update loans assigned to them
+    // 4. Loans & Applications
     match /loans/{loanId} {
-      allow read: if isSignedIn() && (resource.data.employeeEmail == request.auth.token.email || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.employeeEmail == request.auth.token.email || isAdmin());
-      allow update: if isSignedIn() && (resource.data.employeeEmail == request.auth.token.email || isAdmin());
-      allow delete: if isAdmin(); // Only Admins should delete active loans
+      allow read, write: if isAuth();
+    }
+    match /loan_applications/{appId} {
+      allow read, write: if isAuth();
     }
 
-    // 5. EMI Schedules: Open to authenticated users (needed for employees to mark payments)
-    match /emi_schedule/{loanId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // 6. Financials: Strictly Admin Only
-    match /expenses/{docId} {
-      allow read, write: if isAdmin();
-    }
-    match /wallet_transactions/{docId} {
-      allow read, write: if isAdmin();
-    }
-
-    // 7. Settings: Everyone can read (e.g., company profile), only Admin writes
-    match /settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
+    // 5. Financial Records (Expenses, Wallet, EMI)
+    match /expenses/{docId} { allow read, write: if isAuth(); }
+    match /wallet_transactions/{docId} { allow read, write: if isAuth(); }
+    match /emi_schedule/{loanId} { allow read, write: if isAuth(); }
   }
 }

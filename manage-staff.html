@@ -80,19 +80,66 @@
 
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             margin-top: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
         }
 
         th,
         td {
             text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
         }
 
         th {
-            background-color: #f8f9fa;
+            background-color: #34495e;
+            color: white;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .card-header-custom {
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 2px solid #eee; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px;
+        }
+
+        tbody tr:hover {
+            background-color: #f1f2f6;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #fcfcfc;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .card {
+                padding: 15px;
+            }
+            .card-header-custom {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            #add-emp-btn {
+                width: 100%;
+            }
+            th, td {
+                padding: 10px 5px;
+                font-size: 0.85rem;
+            }
         }
     </style>
 </head>
@@ -103,26 +150,26 @@
         Back to Settings</a>
 
     <div class="card">
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
+        <div class="card-header-custom">
             <h2 style="margin: 0; border: none; padding: 0;">Staff List</h2>
             <button id="add-emp-btn"
                 style="background-color: #27ae60; color: white; padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">+
                 Add New</button>
         </div>
-        <table id="employee-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Designation</th>
-                    <th>Department</th>
-                    <th>Mobile</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+        <div style="overflow-x: auto;">
+            <table id="employee-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Designation</th>
+                        <th>Mobile</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Add Employee Modal -->

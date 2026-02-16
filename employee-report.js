@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return null; // Loan fully paid or closed
     };
 
+    let disbursementChart = null;
+    let statusChart = null;
+
     const renderReport = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const employeeEmail = urlParams.get('email');
@@ -189,21 +192,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- RENDER CHARTS ---
         // Disbursement Chart
-        const disburseCtx = document.getElementById('disbursement-chart').getContext('2d');
-        const sortedMonths = Object.keys(monthlyDisbursements).sort();
-        new Chart(disburseCtx, {
-            type: 'bar',
-            data: { labels: sortedMonths, datasets: [{ label: 'Amount Disbursed', data: sortedMonths.map(key => monthlyDisbursements[key]), backgroundColor: '#3498db' }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-        });
+        const disburseCanvas = document.getElementById('disbursement-chart');
+        if (disburseCanvas) {
+            if (disbursementChart) {
+                disbursementChart.destroy();
+            }
+            const disburseCtx = disburseCanvas.getContext('2d');
+            const sortedMonths = Object.keys(monthlyDisbursements).sort();
+            disbursementChart = new Chart(disburseCtx, {
+                type: 'bar',
+                data: { labels: sortedMonths, datasets: [{ label: 'Amount Disbursed', data: sortedMonths.map(key => monthlyDisbursements[key]), backgroundColor: '#3498db' }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            });
+        }
 
         // Status Chart
-        const statusCtx = document.getElementById('loan-status-chart').getContext('2d');
-        new Chart(statusCtx, {
-            type: 'doughnut',
-            data: { labels: ['Active', 'Overdue', 'Closed'], datasets: [{ data: [activeLoans, overdueCount, closedLoans], backgroundColor: ['#27ae60', '#e74c3c', '#95a5a6'] }] },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+        const statusCanvas = document.getElementById('loan-status-chart');
+        if (statusCanvas) {
+            if (statusChart) {
+                statusChart.destroy();
+            }
+            const statusCtx = statusCanvas.getContext('2d');
+            statusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: { labels: ['Active', 'Overdue', 'Closed'], datasets: [{ data: [activeLoans, overdueCount, closedLoans], backgroundColor: ['#27ae60', '#e74c3c', '#95a5a6'] }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
     };
 
     // Initial render and listen for updates from the main app script

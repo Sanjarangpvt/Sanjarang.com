@@ -201,6 +201,34 @@
             border-radius: 20px;
             padding: 10px 20px;
         }
+
+        @media (max-width: 768px) {
+            .filter-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-controls > div {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            #trans-search, #start-date, #end-date {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .wallet-balance-card, .total-disbursement-card-style, .stat-card-mini {
+                min-width: 100% !important;
+                height: auto !important;
+                min-height: auto !important;
+                padding: 20px !important;
+            }
+            #wallet-balance, #total-disbursement-display {
+                font-size: 2.5rem !important;
+            }
+            .stat-card-mini .amount {
+                font-size: 1.5rem !important;
+            }
+        }
     </style>
 </head>
 
@@ -258,19 +286,21 @@
                                 style="background-color: var(--success-color);">Export CSV</button>
                         </div>
                     </div>
-                    <table id="transaction-history-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Borrower</th>
-                                <th>Description</th>
-                                <th>Type</th>
-                                <th style="text-align: right;">Amount</th>
-                                <th style="text-align: center;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transaction-table-body"></tbody>
-                    </table>
+                    <div style="overflow-x: auto;">
+                        <table id="transaction-history-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Borrower</th>
+                                    <th>Description</th>
+                                    <th>Type</th>
+                                    <th style="text-align: right;">Amount</th>
+                                    <th style="text-align: center;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transaction-table-body"></tbody>
+                        </table>
+                    </div>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; align-items: right;">
                         <button id="prev-page-btn" disabled>Previous</button>
                         <span id="page-indicator">Page 1</span>

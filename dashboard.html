@@ -108,6 +108,13 @@
                                 <p class="stat-number" id="stat-active-loans">0</p>
                             </div>
                         </div>
+                        <div class="card stat-card card-red" onclick="window.location.href='overdue-loans.html'" style="cursor: pointer;">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-details">
+                                <h3>Overdue Loans</h3>
+                                <p class="stat-number" id="stat-overdue-loans">0</p>
+                            </div>
+                        </div>
                         <div class="card stat-card card-red">
                             <div class="stat-icon">🔒</div>
                             <div class="stat-details">
@@ -173,7 +180,7 @@
                     </section>
 
                     <div
-                        style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px; margin-bottom: 2rem;">
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; margin-bottom: 2rem;">
                         <!-- Loan Status Chart -->
                         <section class="card" style="margin-bottom: 0;">
                             <h2>Loan Status Distribution</h2>

@@ -9,7 +9,7 @@ A comprehensive web-based Loan Management System designed to streamline the proc
 - **Employee Dashboard**: Specialized interface for staff to manage their assigned loans, view performance stats, and submit applications.
 - **Role-Based Access**: Secure login with differentiated permissions for Admins and Employees.
 
-### 💸 Loan Management
+### 💸 Loan Management 
 - **Dashboard Overview**: Real-time stats on active loans, overdue payments, and monthly revenue.
 - **Loan Lifecycle**: Create new loan applications, track active loans, manage overdue accounts, and archive closed loans.
 - **Application Workflow**: Submit and review loan applications (`applications.html`) before disbursement.

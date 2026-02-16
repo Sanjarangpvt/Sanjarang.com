@@ -608,7 +608,85 @@ th {
 
 @media (max-width: 768px) {
     .dashboard-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    main {
+        padding: 10px;
+    }
+    
+    .card {
+        padding: 15px;
+    }
+
+    /* Header Responsive Styles */
+    .header-container {
+        height: auto;
+        min-height: 60px;
+        padding: 10px 15px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .header-left {
+        width: 100%;
+    }
+
+    .header-right {
+        width: 100%;
+        justify-content: space-between;
+        padding-top: 0;
+    }
+
+    .header-title-group h1 {
+        font-size: 1.2rem;
+    }
+
+    .user-profile, #current-datetime, #sync-status {
+        display: none;
+    }
+
+    .search-wrapper {
+        flex-grow: 1;
+        margin-right: 10px;
+    }
+
+    #global-search {
+        width: 100%;
+        padding: 8px 12px;
+    }
+    
+    #global-search:focus {
+        width: 100%;
+    }
+
+    .stat-card {
+        padding: 10px;
+        min-height: auto;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .stat-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+    }
+
+    .stat-details {
+        text-align: left;
+        margin-left: 0;
+    }
+
+    .stat-details h3 {
+        font-size: 0.7rem !important;
+    }
+
+    .stat-details .stat-number {
+        font-size: 1.1rem !important;
     }
 }
 

@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '';
 
         if (employees.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: #777;">No employees found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: #777;">No employees found.</td></tr>';
             return;
         }
 
@@ -405,13 +405,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${emp.id}</td>
                 <td>${emp.name}</td>
                 <td>${emp.designation}</td>
-                <td>${emp.department}</td>
                 <td>${emp.mobile}</td>
                 <td>
-                    <button class="view-emp-btn" data-index="${index}" style="background-color: #2c3e50; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;" title="View Profile"><i class="bi bi-eye"></i></button>
-                    <button class="edit-emp-btn" data-index="${index}" style="background-color: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">Edit</button>
-                    <button class="generate-id-btn" data-index="${index}" style="background-color: #3498db; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">ID Card</button>
-                    <button class="delete-emp-btn" data-index="${index}" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                        <button class="view-emp-btn" data-index="${index}" style="background-color: #2c3e50; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; width: 100%;" title="View Profile"><i class="bi bi-eye"></i></button>
+                        <button class="edit-emp-btn" data-index="${index}" style="background-color: #f39c12; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; width: 100%;" title="Edit"><i class="bi bi-pencil"></i></button>
+                        <button class="generate-id-btn" data-index="${index}" style="background-color: #3498db; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 0.8rem;" title="ID Card">ID</button>
+                        <button class="delete-emp-btn" data-index="${index}" style="background-color: #e74c3c; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; width: 100%;" title="Delete"><i class="bi bi-trash"></i></button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(row);
@@ -469,7 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add edit listeners
         document.querySelectorAll('.edit-emp-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const idx = e.target.getAttribute('data-index');
+                const target = e.target.closest('.edit-emp-btn');
+                const idx = target.getAttribute('data-index');
                 const employees = window.employees || [];
                 const emp = employees[idx];
 
@@ -501,7 +503,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add delete listeners
         document.querySelectorAll('.delete-emp-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const idx = e.target.getAttribute('data-index');
+                const target = e.target.closest('.delete-emp-btn');
+                const idx = target.getAttribute('data-index');
                 if (confirm('Delete this employee?')) {
                     const employees = window.employees || [];
                     const emp = employees[idx];
